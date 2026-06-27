@@ -354,6 +354,30 @@
   .tag{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--panel-2);color:var(--ink-soft);vertical-align:1px}
   .tag-admin{background:rgba(229,123,142,.18);color:var(--danger)}
   .tag-coach{background:rgba(167,200,234,.18);color:var(--blue-2)}
+  /* coach dashboard (full page) */
+  .coach-dash{position:fixed;inset:0;z-index:55;background:var(--bg);display:none;flex-direction:column;overflow:hidden}
+  .coach-dash.open{display:flex}
+  .cd-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 24px;border-bottom:1px solid var(--line);background:var(--panel-2)}
+  .cd-head h2{margin:0;font-size:20px;font-weight:800;color:var(--ink)}
+  .cd-body{flex:1;overflow-y:auto;padding:20px 24px;max-width:1100px;width:100%;margin:0 auto}
+  .cd-invite{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--panel);margin-bottom:18px}
+  .cd-invite .grow{flex:1;min-width:200px;display:flex;flex-direction:column;gap:4px}
+  .cd-invite input{background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:9px 12px;color:var(--ink);font-size:13px;outline:none}
+  .cd-invite .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink-soft);font-weight:700}
+  .cd-table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:14px}
+  table.cd-table{width:100%;border-collapse:collapse;font-size:13.5px}
+  table.cd-table th{text-align:left;padding:11px 14px;background:var(--panel-2);color:var(--ink-soft);font-size:11px;text-transform:uppercase;letter-spacing:.7px;font-weight:700;white-space:nowrap;border-bottom:1px solid var(--line)}
+  table.cd-table td{padding:12px 14px;border-bottom:1px solid var(--line);color:var(--ink);vertical-align:middle}
+  table.cd-table tr:last-child td{border-bottom:none}
+  table.cd-table tr:hover td{background:var(--panel)}
+  .cd-trainee{display:flex;align-items:center;gap:10px}
+  .cd-av{width:36px;height:36px;border-radius:10px;background:conic-gradient(from 200deg,var(--blue),var(--cyan),var(--primary),var(--blue));display:grid;place-items:center;color:var(--button-text);font-weight:700;font-size:13px;flex-shrink:0;background-position:center;background-size:cover}
+  .cd-tname{font-weight:700}
+  .cd-tsub{font-size:11.5px;color:var(--ink-soft)}
+  .cd-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .cd-add{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:9px;border:none;cursor:pointer;font-size:20px;font-weight:700;background:linear-gradient(135deg,var(--blue),var(--primary));color:var(--button-text);box-shadow:0 4px 14px var(--glow)}
+  .cd-add:hover{transform:translateY(-1px)}
+  .cd-empty{padding:40px;text-align:center;color:var(--ink-soft)}
   /* trainee locked to view-only by their coach */
   body.prog-locked #newProgramBtn,
   body.prog-locked #addBlockBtn,
@@ -965,7 +989,7 @@
       <button data-stab="program"><svg><use href="#i-clock"/></svg> Programs</button>
       <button data-stab="archive"><svg><use href="#i-archive"/></svg> Archive <span class="badge" id="archiveBadge">0</span></button>
       <button data-stab="search"><svg><use href="#i-search"/></svg> Search History</button>
-      <button id="coachTabBtn" data-stab="coach" style="display:none"><svg><use href="#i-group"/></svg> Coaching</button>
+      <button id="coachTabBtn" data-stab="coach" style="display:none"><svg><use href="#i-group"/></svg> Trainees Dashboard</button>
       <button id="adminTabBtn" data-stab="admin" style="display:none"><svg><use href="#i-bolt"/></svg> Admin</button>
       <button data-stab="settings"><svg><use href="#i-cog"/></svg> Settings</button>
     </nav>
@@ -1118,6 +1142,15 @@
       <button class="btn btn-primary" id="onboardingSave" style="width:100%">Save &amp; continue</button>
     </div>
   </div>
+</div>
+
+<!-- Coach dashboard (full page) -->
+<div class="coach-dash" id="coachDashboard" aria-hidden="true">
+  <div class="cd-head">
+    <h2><svg style="width:20px;height:20px;vertical-align:-3px"><use href="#i-group"/></svg> Trainees Dashboard</h2>
+    <button class="modal-close" id="coachDashClose" aria-label="Close">×</button>
+  </div>
+  <div class="cd-body" id="coachDashBody"></div>
 </div>
 
 <!-- 5-second countdown overlay -->
@@ -3479,13 +3512,14 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
 
   document.querySelectorAll('.side-nav button').forEach(btn => {
     btn.addEventListener('click', () => {
+      // Trainees Dashboard is a full page, not a tray section.
+      if (btn.dataset.stab === 'coach'){ openCoachDashboard(); return; }
       document.querySelectorAll('.side-nav button').forEach(b => b.classList.toggle('active', b === btn));
       document.querySelectorAll('.side-section').forEach(s => s.classList.toggle('active', s.dataset.section === btn.dataset.stab));
       if (btn.dataset.stab === 'archive') renderArchive();
       if (btn.dataset.stab === 'program'){ renderProgramSummary(); renderProgramsList(); }
       if (btn.dataset.stab === 'search') document.getElementById('searchInput').focus();
       if (btn.dataset.stab === 'prs') renderPrs();
-      if (btn.dataset.stab === 'coach') renderCoachPanel();
       if (btn.dataset.stab === 'admin') renderAdminPanel();
     });
   });
@@ -4441,6 +4475,135 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       `<div class="invite-out">Code: <code>${code}</code><br>Link: <a href="${link}">${esc(link)}</a></div>`;
     document.getElementById('inviteEmail').value = '';
     renderCoachPanel();
+  }
+
+  /* ====================== COACH DASHBOARD (full page) ====================== */
+  function openCoachDashboard(){
+    closeSidePanel();
+    document.getElementById('coachDashboard').classList.add('open');
+    document.getElementById('coachDashboard').setAttribute('aria-hidden','false');
+    renderCoachDashboard();
+  }
+  function closeCoachDashboard(){
+    const el = document.getElementById('coachDashboard');
+    el.classList.remove('open'); el.setAttribute('aria-hidden','true');
+  }
+  document.getElementById('coachDashClose').addEventListener('click', closeCoachDashboard);
+
+  async function renderCoachDashboard(){
+    const body = document.getElementById('coachDashBody');
+    body.innerHTML = `<div class="cd-empty">Loading…</div>`;
+
+    if (!currentProfile?.is_coach){
+      body.innerHTML = `<div class="cd-empty">
+        <p>Open a coaching workspace to manage programs for multiple trainees and track their progress.</p>
+        <button class="btn btn-primary" id="cdBecomeCoach">Enable coaching</button></div>`;
+      document.getElementById('cdBecomeCoach').addEventListener('click', async () => {
+        await saveProfile({ is_coach: true });
+        currentProfile.is_coach = true; applyRoleVisibility(); renderCoachDashboard();
+      });
+      return;
+    }
+
+    const { data: links, error } = await sb.from('crossfit_coach_links').select('*')
+      .eq('coach_user_id', currentUser.id).order('created_at', { ascending:false });
+    if (error){ body.innerHTML = `<div class="cd-empty">${esc(error.message)}</div>`; return; }
+    const active  = (links||[]).filter(l => l.status==='active' && l.trainee_user_id);
+    const invited = (links||[]).filter(l => l.status==='invited');
+
+    // trainee profiles + their programs
+    let profs = {}, progByUser = {};
+    if (active.length){
+      const ids = active.map(l => l.trainee_user_id);
+      const [{ data: pr }, { data: pgs }] = await Promise.all([
+        sb.from('profiles').select('user_id, display_name, email, phone, affiliate_box, avatar_url').in('user_id', ids),
+        sb.from('programs').select('user_id, name, start_date, is_default, created_at').in('user_id', ids)
+      ]);
+      (pr||[]).forEach(p => profs[p.user_id] = p);
+      (pgs||[]).forEach(p => {
+        const cur = progByUser[p.user_id];
+        if (!cur || p.is_default || (!cur.is_default && p.created_at < cur.created_at)) progByUser[p.user_id] = p;
+      });
+    }
+
+    const atLimit = active.length >= MAX_TRAINEES;
+    let html = `<div class="cd-invite">
+      <div class="grow"><span class="lbl">Invite a trainee (${active.length}/${MAX_TRAINEES})</span>
+        <input type="email" id="cdInviteEmail" placeholder="trainee@email.com (optional)" ${atLimit?'disabled':''}></div>
+      <button class="btn btn-primary" id="cdGenInvite" ${atLimit?'disabled':''}>Generate invite</button>
+    </div>
+    <div id="cdInviteOut"></div>`;
+
+    if (invited.length){
+      html += `<p class="muted-note">Pending invites: ${invited.map(l=>`<code>${esc(l.join_code)}</code>`).join(' ')}</p>`;
+    }
+
+    html += `<div class="cd-table-wrap"><table class="cd-table"><thead><tr>
+      <th>Trainee</th><th>Affiliate / Box</th><th>Program</th><th>Start date</th><th>Editing</th><th>New</th><th></th>
+    </tr></thead><tbody>`;
+    if (!active.length){
+      html += `<tr><td colspan="7"><div class="cd-empty">No trainees yet. Generate an invite code above and share it.</div></td></tr>`;
+    }
+    active.forEach(l => {
+      const p = profs[l.trainee_user_id] || {};
+      const nm = p.display_name || p.email || 'Trainee';
+      const prog = progByUser[l.trainee_user_id];
+      const canEdit = l.trainee_can_edit !== false;
+      const initial = (nm||'?').charAt(0).toUpperCase();
+      html += `<tr>
+        <td><div class="cd-trainee"><div class="cd-av" data-av="${esc(p.avatar_url||'')}">${initial}</div>
+          <div><div class="cd-tname">${esc(nm)}</div><div class="cd-tsub">${esc(p.email||'')}${p.phone?' · '+esc(p.phone):''}</div></div></div></td>
+        <td>${esc(p.affiliate_box||'—')}</td>
+        <td>${prog?esc(prog.name):'<span class="cd-tsub">No program</span>'}</td>
+        <td>${prog?.start_date?esc(prog.start_date):'—'}</td>
+        <td><button class="btn cd-lock" data-id="${l.id}" data-val="${canEdit?0:1}">${canEdit?'Can edit':'View-only'}</button></td>
+        <td><button class="cd-add" title="New program for ${esc(nm)}" data-id="${l.trainee_user_id}" data-name="${esc(nm)}">+</button></td>
+        <td><div class="cd-actions">
+          <button class="btn cd-view" data-id="${l.trainee_user_id}" data-name="${esc(nm)}">View</button>
+          <button class="btn cd-unlink" data-id="${l.id}">Unlink</button>
+        </div></td>
+      </tr>`;
+    });
+    html += `</tbody></table></div>`;
+    body.innerHTML = html;
+
+    // avatars
+    body.querySelectorAll('.cd-av[data-av]').forEach(el => {
+      const path = el.dataset.av; if (!path) return;
+      avatarSignedUrl(path).then(u => { if (u){ el.style.backgroundImage=`url("${u}")`; el.textContent=''; } });
+    });
+    // invite
+    document.getElementById('cdGenInvite')?.addEventListener('click', async () => {
+      const email = document.getElementById('cdInviteEmail').value.trim() || null;
+      const code = randomCode();
+      const { error } = await sb.from('crossfit_coach_links').insert({
+        coach_user_id: currentUser.id, invite_email: email, join_code: code, status:'invited'
+      });
+      if (error){ alert('Could not create invite: ' + error.message); return; }
+      const link = `${window.location.origin}${window.location.pathname}?join=${code}`;
+      document.getElementById('cdInviteOut').innerHTML =
+        `<div class="invite-out">Code: <code>${code}</code> &nbsp; Link: <a href="${link}">${esc(link)}</a></div>`;
+      renderCoachDashboard();
+    });
+    // per-row actions
+    body.querySelectorAll('.cd-add').forEach(b => b.addEventListener('click', async () => {
+      await viewUserData(b.dataset.id, b.dataset.name);
+      closeCoachDashboard();
+      openProgramModal();
+    }));
+    body.querySelectorAll('.cd-view').forEach(b => b.addEventListener('click', async () => {
+      await viewUserData(b.dataset.id, b.dataset.name);
+      closeCoachDashboard();
+    }));
+    body.querySelectorAll('.cd-lock').forEach(b => b.addEventListener('click', async () => {
+      await sb.from('crossfit_coach_links').update({ trainee_can_edit: b.dataset.val==='1' }).eq('id', b.dataset.id);
+      renderCoachDashboard();
+    }));
+    body.querySelectorAll('.cd-unlink').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('Unlink this trainee?')) return;
+      await sb.from('crossfit_coach_links').update({ status:'revoked' }).eq('id', b.dataset.id);
+      renderCoachDashboard();
+    }));
   }
 
   /* ====================== ADMIN ====================== */
