@@ -216,7 +216,13 @@
   .block-edit svg{width:13px;height:13px}
   .block h4{margin:0 0 4px;font-size:12.5px;color:var(--blue-2);letter-spacing:1.2px;text-transform:uppercase;font-family:'Space Grotesk';font-weight:600}
   .block .name{font-size:17px;font-weight:700;color:var(--ink);margin-bottom:8px}
-  .block .body{white-space:pre-wrap;font-size:14px;line-height:1.7;color:var(--ink-soft);flex:1}
+  .block .body{white-space:pre-wrap;font-size:14px;line-height:1.7;color:var(--ink-soft);flex:1;word-break:break-word}
+  .body-link{
+    color:var(--blue-2);text-decoration:underline;text-decoration-color:rgba(167,200,234,.4);
+    text-underline-offset:2px;cursor:pointer;transition:color .15s
+  }
+  .body-link:hover{color:var(--cyan);text-decoration-color:var(--cyan)}
+  .body-link:active{color:var(--blue-3)}
 
   /* Timer */
   .timer{margin-top:12px;padding:12px;background:var(--panel-3);border:1px solid var(--line);border-radius:12px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;position:relative;overflow:hidden;transition:border-color .25s,box-shadow .25s}
@@ -1219,6 +1225,15 @@
   }
   function uid(){ return 'b' + Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4); }
   function esc(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function linkify(escapedHtml){
+    // Convert plain http(s) URLs in already-escaped HTML to clickable anchors
+    return String(escapedHtml).replace(/(https?:\/\/[^\s<>"]+)/g, (url) => {
+      // Strip trailing punctuation that shouldn't be in URL
+      let trail = '';
+      while (/[.,;:!?)\]]$/.test(url)){ trail = url.slice(-1) + trail; url = url.slice(0,-1); }
+      return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="body-link">${url}</a>${trail}`;
+    });
+  }
 
   /* ============ MOTIVATIONAL QUOTES (100) ============ */
   const QUOTES = [
@@ -2587,7 +2602,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       </div>
       <h4>${esc(b.cat)}</h4>
       <div class="name">${esc(b.name)}</div>
-      <div class="body">${esc(b.body)}</div>
+      <div class="body">${linkify(esc(b.body))}</div>
       ${timerHTML(b.timer)}
     `;
     el.querySelector('.block-edit').addEventListener('click', () => openModal(b.id));
