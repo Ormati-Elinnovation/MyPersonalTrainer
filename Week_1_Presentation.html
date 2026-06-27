@@ -1770,23 +1770,38 @@ Block schema:
 
 Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}, ...]`;
 
-  async function generateProgramJson({ source, goals, fileText, imageData, imageMime, startDate }){
-    let messages;
-    if (source === 'ai'){
-      messages = [{ role: 'user', content: `Build a CrossFit program for these goals:\n\n${goals}\n\nStart date: ${startDate}\nReturn JSON only.` }];
-    } else if (fileText){
-      messages = [{ role: 'user', content: `Parse this workout plan into structured days. Start date: ${startDate}.\n\nSource:\n${fileText.slice(0, 30000)}\n\nReturn JSON only.` }];
-    } else if (imageData){
-      messages = [{ role: 'user', content: [
-        { type: 'image', source: { type: 'base64', media_type: imageMime, data: imageData } },
-        { type: 'text', text: `Parse this workout image into structured days. Start date: ${startDate}. Return JSON only.` }
-      ]}];
-    } else {
-      throw new Error('No input provided to AI.');
+  async function generateProgramJson(payload){
+    const { source, goals, fileText, imageData, imageMime, startDate } = payload;
+    // 1) Centralized server (Edge Function) — no per-user key needed.
+    let serverErr = null;
+    try {
+      const { data, error } = await sb.functions.invoke('generate-program', { body: payload });
+      if (error) serverErr = error;
+      else if (data && data.error) serverErr = new Error(data.error);
+      else if (data && Array.isArray(data.days)) return data.days;
+      else serverErr = new Error('AI service returned no data.');
+    } catch(e){ serverErr = e; }
+
+    // 2) Fallback to the user's own Anthropic key, if they set one in Settings.
+    if (getAnthropicKey()){
+      let messages;
+      if (source === 'ai'){
+        messages = [{ role: 'user', content: `Build a CrossFit program for these goals:\n\n${goals}\n\nStart date: ${startDate}\nReturn JSON only.` }];
+      } else if (fileText){
+        messages = [{ role: 'user', content: `Parse this workout plan into structured days. Start date: ${startDate}.\n\nSource:\n${fileText.slice(0, 30000)}\n\nReturn JSON only.` }];
+      } else if (imageData){
+        messages = [{ role: 'user', content: [
+          { type: 'image', source: { type: 'base64', media_type: imageMime, data: imageData } },
+          { type: 'text', text: `Parse this workout image into structured days. Start date: ${startDate}. Return JSON only.` }
+        ]}];
+      } else {
+        throw new Error('No input provided to AI.');
+      }
+      const text = await callClaude({ system: AI_SYSTEM_PROMPT, messages });
+      const cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
+      return JSON.parse(cleaned);
     }
-    const text = await callClaude({ system: AI_SYSTEM_PROMPT, messages });
-    let cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
-    return JSON.parse(cleaned);
+    throw serverErr || new Error('AI is not available right now.');
   }
 
   async function applyGeneratedProgram(programId, days, startDate){
@@ -3945,11 +3960,6 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const pastedAi   = (f.ai_json?.value   || '').trim();
     const pastedFile = (f.file_json?.value || '').trim();
     const usingPaste = (source === 'ai' && pastedAi) || (source === 'file' && pastedFile);
-
-    if ((source === 'ai' || source === 'file') && !usingPaste && !getAnthropicKey()){
-      alert('You can do this two ways:\n\n1. Click "Copy prompt for Claude" → paste in claude.ai → paste JSON back below → Create.\n\n2. Add an Anthropic API key (Profile → Settings) and Create will auto-generate.');
-      return;
-    }
 
     pmSave.disabled = true; const orig = pmSave.textContent;
     try {
