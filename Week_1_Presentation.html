@@ -379,6 +379,13 @@
   .cd-add{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:9px;border:none;cursor:pointer;font-size:20px;font-weight:700;background:linear-gradient(135deg,var(--blue),var(--primary));color:var(--button-text);box-shadow:0 4px 14px var(--glow)}
   .cd-add:hover{transform:translateY(-1px)}
   .cd-empty{padding:40px;text-align:center;color:var(--ink-soft)}
+  .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px}
+  .kpi{border:1px solid var(--line);border-radius:14px;padding:14px 16px;background:var(--panel)}
+  .kpi-num{font-family:'Space Grotesk';font-size:28px;font-weight:800;color:var(--ink);line-height:1.1}
+  .kpi-label{font-size:11.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--ink-soft);font-weight:700;margin-top:4px}
+  .cd-bar{height:6px;border-radius:99px;background:var(--panel-2);overflow:hidden;min-width:60px}
+  .cd-bar span{display:block;height:100%;background:linear-gradient(90deg,var(--blue),var(--primary))}
+  .cd-sec-title{font-size:13px;font-weight:800;color:var(--ink);text-transform:uppercase;letter-spacing:.6px;margin:22px 0 10px}
   /* trainee locked to view-only by their coach */
   body.prog-locked #newProgramBtn,
   body.prog-locked #addBlockBtn,
@@ -1152,6 +1159,15 @@
     <button class="modal-close" id="coachDashClose" aria-label="Close">×</button>
   </div>
   <div class="cd-body" id="coachDashBody"></div>
+</div>
+
+<!-- Admin dashboard (full page) -->
+<div class="coach-dash" id="adminDashboard" aria-hidden="true">
+  <div class="cd-head">
+    <h2><svg style="width:20px;height:20px;vertical-align:-3px"><use href="#i-bolt"/></svg> Admin Dashboard</h2>
+    <button class="modal-close" id="adminDashClose" aria-label="Close">×</button>
+  </div>
+  <div class="cd-body" id="adminDashBody"></div>
 </div>
 
 <!-- 5-second countdown overlay -->
@@ -3542,8 +3558,9 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
 
   document.querySelectorAll('.side-nav button').forEach(btn => {
     btn.addEventListener('click', () => {
-      // Trainees Dashboard is a full page, not a tray section.
+      // Dashboards are full pages, not tray sections.
       if (btn.dataset.stab === 'coach'){ openCoachDashboard(); return; }
+      if (btn.dataset.stab === 'admin'){ openAdminDashboard(); return; }
       document.querySelectorAll('.side-nav button').forEach(b => b.classList.toggle('active', b === btn));
       document.querySelectorAll('.side-section').forEach(s => s.classList.toggle('active', s.dataset.section === btn.dataset.stab));
       if (btn.dataset.stab === 'archive') renderArchive();
@@ -4689,6 +4706,126 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       if (!confirm('Change admin rights for this user?')) return;
       await sb.from('profiles').update({ is_admin: b.dataset.val==='1' }).eq('user_id', b.dataset.id);
       renderAdminPanel();
+    }));
+  }
+
+  /* ====================== ADMIN DASHBOARD (full page) ====================== */
+  function openAdminDashboard(){
+    if (!currentProfile?.is_admin) return;
+    closeSidePanel();
+    const el = document.getElementById('adminDashboard');
+    el.classList.add('open'); el.setAttribute('aria-hidden','false');
+    renderAdminDashboard();
+  }
+  function closeAdminDashboard(){
+    const el = document.getElementById('adminDashboard');
+    el.classList.remove('open'); el.setAttribute('aria-hidden','true');
+  }
+  document.getElementById('adminDashClose').addEventListener('click', closeAdminDashboard);
+
+  function fmtDay(ts){ if(!ts) return '—'; try { return new Date(ts).toLocaleDateString(); } catch { return '—'; } }
+
+  async function renderAdminDashboard(){
+    const body = document.getElementById('adminDashBody');
+    if (!currentProfile?.is_admin){ body.innerHTML = `<div class="cd-empty">Admins only.</div>`; return; }
+    body.innerHTML = `<div class="cd-empty">Loading…</div>`;
+
+    const [profsR, linksR, progsR, trackR, finR, blocksR] = await Promise.all([
+      sb.from('profiles').select('user_id, display_name, email, affiliate_box, avatar_url, is_coach, is_admin, created_at'),
+      sb.from('crossfit_coach_links').select('coach_user_id, trainee_user_id, status, accepted_at'),
+      sb.from('programs').select('user_id, created_at'),
+      sb.from('tracker').select('user_id, done'),
+      sb.from('day_finished').select('user_id'),
+      sb.from('blocks').select('user_id')
+    ]);
+    const err = profsR.error || linksR.error || progsR.error || trackR.error || finR.error || blocksR.error;
+    if (err){ body.innerHTML = `<div class="cd-empty">${esc(err.message)}</div>`; return; }
+
+    const profs = profsR.data || [];
+    const links = linksR.data || [];
+    const activeLinks = links.filter(l => l.status==='active' && l.trainee_user_id);
+
+    // per-user aggregates
+    const count = (arr, key) => arr.reduce((m,r)=>{ m[r.user_id]=(m[r.user_id]||0)+1; return m; }, {});
+    const progN  = count(progsR.data||[]);
+    const blockN = count(blocksR.data||[]);
+    const finN   = count(finR.data||[]);
+    const doneN  = (trackR.data||[]).reduce((m,r)=>{ if(r.done){ m[r.user_id]=(m[r.user_id]||0)+1; } return m; }, {});
+
+    // role maps
+    const nameOf = {}; profs.forEach(p => nameOf[p.user_id] = p.display_name || p.email || 'User');
+    const coachOfTrainee = {};               // traineeId -> coachId
+    const traineesByCoach = {};              // coachId -> [traineeId]
+    activeLinks.forEach(l => {
+      coachOfTrainee[l.trainee_user_id] = l.coach_user_id;
+      (traineesByCoach[l.coach_user_id] = traineesByCoach[l.coach_user_id] || []).push(l.trainee_user_id);
+    });
+
+    const traineeIds = new Set(activeLinks.map(l => l.trainee_user_id));
+    const coachIds   = new Set(profs.filter(p=>p.is_coach).map(p=>p.user_id));
+    const totalDone  = Object.values(doneN).reduce((a,b)=>a+b,0);
+
+    // ---- KPI cards ----
+    const kpi = (n,l)=>`<div class="kpi"><div class="kpi-num">${n}</div><div class="kpi-label">${l}</div></div>`;
+    let html = `<div class="kpi-grid">
+      ${kpi(profs.length,'Total users')}
+      ${kpi(coachIds.size,'Coaches')}
+      ${kpi(traineeIds.size,'Active trainees')}
+      ${kpi(profs.filter(p=>p.is_admin).length,'Admins')}
+      ${kpi((progsR.data||[]).length,'Programs')}
+      ${kpi(totalDone,'Workouts completed')}
+      ${kpi((finR.data||[]).length,'Days finished')}
+      ${kpi(links.filter(l=>l.status==='invited').length,'Pending invites')}
+    </div>`;
+
+    // ---- Coaches summary ----
+    html += `<div class="cd-sec-title">Coaches</div><div class="cd-table-wrap"><table class="cd-table"><thead><tr>
+      <th>Coach</th><th>Trainees</th><th>Joined</th></tr></thead><tbody>`;
+    const coaches = profs.filter(p=>p.is_coach).sort((a,b)=>(traineesByCoach[b.user_id]?.length||0)-(traineesByCoach[a.user_id]?.length||0));
+    if (!coaches.length) html += `<tr><td colspan="3"><div class="cd-empty">No coaches yet.</div></td></tr>`;
+    coaches.forEach(c => {
+      const tn = (traineesByCoach[c.user_id]||[]).length;
+      html += `<tr><td><strong>${esc(nameOf[c.user_id])}</strong><div class="cd-tsub">${esc(c.email||'')}</div></td>
+        <td>${tn}/${MAX_TRAINEES}</td><td>${fmtDay(c.created_at)}</td></tr>`;
+    });
+    html += `</tbody></table></div>`;
+
+    // ---- All users with performance ----
+    html += `<div class="cd-sec-title">All users</div><div class="cd-table-wrap"><table class="cd-table"><thead><tr>
+      <th>User</th><th>Role</th><th>Box</th><th>Joined</th><th>Programs</th><th>Completed</th><th>Finished days</th><th>Coach</th><th></th>
+    </tr></thead><tbody>`;
+    const sorted = [...profs].sort((a,b)=> (a.created_at||'').localeCompare(b.created_at||''));
+    sorted.forEach(p => {
+      const tags = [];
+      if (p.is_admin) tags.push('<span class="tag tag-admin">admin</span>');
+      if (p.is_coach) tags.push('<span class="tag tag-coach">coach</span>');
+      if (traineeIds.has(p.user_id)) tags.push('<span class="tag">trainee</span>');
+      const total = blockN[p.user_id]||0, done = doneN[p.user_id]||0;
+      const pct = total ? Math.round(done/total*100) : 0;
+      const coachId = coachOfTrainee[p.user_id];
+      html += `<tr>
+        <td><div class="cd-trainee"><div class="cd-av" data-av="${esc(p.avatar_url||'')}">${esc((nameOf[p.user_id]||'?').charAt(0).toUpperCase())}</div>
+          <div><div class="cd-tname">${esc(nameOf[p.user_id])}</div><div class="cd-tsub">${esc(p.email||'')}</div></div></div></td>
+        <td>${tags.join(' ')||'<span class="cd-tsub">user</span>'}</td>
+        <td>${esc(p.affiliate_box||'—')}</td>
+        <td>${fmtDay(p.created_at)}</td>
+        <td>${progN[p.user_id]||0}</td>
+        <td><div style="display:flex;align-items:center;gap:8px"><span>${done}/${total}</span><div class="cd-bar"><span style="width:${pct}%"></span></div></div></td>
+        <td>${finN[p.user_id]||0}</td>
+        <td>${coachId?esc(nameOf[coachId]||'—'):'—'}</td>
+        <td><button class="btn admin-view" data-id="${p.user_id}" data-name="${esc(nameOf[p.user_id])}">View</button></td>
+      </tr>`;
+    });
+    html += `</tbody></table></div>`;
+    body.innerHTML = html;
+
+    body.querySelectorAll('.cd-av[data-av]').forEach(el => {
+      const path = el.dataset.av; if (!path) return;
+      avatarSignedUrl(path).then(u => { if (u){ el.style.backgroundImage=`url("${u}")`; el.textContent=''; } });
+    });
+    body.querySelectorAll('.admin-view').forEach(b => b.addEventListener('click', async () => {
+      await viewUserData(b.dataset.id, b.dataset.name);
+      closeAdminDashboard();
     }));
   }
 
