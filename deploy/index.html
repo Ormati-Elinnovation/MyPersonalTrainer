@@ -11,6 +11,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/tus-js-client@4.1.0/dist/tus.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root, [data-theme="dark"]{
     --bg:#07111f; --bg-2:#0c1a31; --bg-3:#122446;
@@ -1237,8 +1238,8 @@
       </div>
       <div class="form-row" id="fileUploadRow" style="display:none">
         <label>Upload a file
-          <input type="file" name="program_file" accept=".pdf,.txt,.md,.doc,.docx,image/*">
-          <span class="hint">PDF / text / image of a workout plan.</span>
+          <input type="file" name="program_file" accept=".pdf,.txt,.md,.csv,.xlsx,.xls,.doc,.docx,image/*">
+          <span class="hint">PDF / Excel (.xlsx) / CSV / text / image of a workout plan.</span>
         </label>
         <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
           <button type="button" class="btn btn-secondary" id="copyFilePromptBtn" style="flex:1;min-width:160px;font-size:12.5px;padding:8px 12px">📋 Read file &amp; copy prompt for Claude</button>
@@ -1730,6 +1731,20 @@
       r.onerror = rej;
       r.readAsDataURL(file);
     });
+  }
+  function isExcelFile(file){
+    return /\.(xlsx|xls)$/i.test(file.name) ||
+      /spreadsheetml|ms-excel/.test(file.type || '');
+  }
+  async function extractExcelText(file){
+    if (!window.XLSX) throw new Error('Excel library not loaded.');
+    const ab = await file.arrayBuffer();
+    const wb = window.XLSX.read(ab, { type:'array' });
+    // Convert every sheet to CSV text so the AI can read the table structure.
+    return wb.SheetNames.map(name => {
+      const csv = window.XLSX.utils.sheet_to_csv(wb.Sheets[name]);
+      return `# Sheet: ${name}\n${csv}`;
+    }).join('\n\n');
   }
 
   const AI_SYSTEM_PROMPT = `You are an expert CrossFit programmer. Output a structured workout plan as JSON.
@@ -3904,6 +3919,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     try {
       let text;
       if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) text = await extractPdfText(file);
+      else if (isExcelFile(file)) text = await extractExcelText(file);
       else if (file.type.startsWith('image/')){
         alert('Images need direct API call. For chat round-trip, please share the image directly with Claude in your chat (along with the prompt that will be copied for context).');
         // Still copy a prompt asking Claude to interpret the attached image
@@ -3964,6 +3980,8 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
           let payload = { source:'file', startDate: start_date };
           if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)){
             pmSave.textContent = 'Reading PDF...'; payload.fileText = await extractPdfText(file);
+          } else if (isExcelFile(file)){
+            pmSave.textContent = 'Reading Excel...'; payload.fileText = await extractExcelText(file);
           } else if (file.type.startsWith('image/')){
             pmSave.textContent = 'Reading image...'; payload.imageData = await fileToBase64(file); payload.imageMime = file.type;
           } else { pmSave.textContent = 'Reading file...'; payload.fileText = await file.text(); }
