@@ -18,3 +18,6 @@ The admin flag was set manually:
 
 ⚠️ `04_rls_cutover` breaks the old guest-mode app instantly. Deploy the new
 `deploy/index.html` (login-required) first, then run it.
+
+## Additional applied migrations
+- `crossfit_coach_trainee_limit` — DB trigger enforcing max 5 active trainees per coach.

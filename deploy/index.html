@@ -4324,6 +4324,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
   }
 
   /* ====================== COACHING ====================== */
+  const MAX_TRAINEES = 5;
   function randomCode(){
     const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     const r = crypto.getRandomValues(new Uint8Array(8));
@@ -4358,10 +4359,12 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       const { data: profs } = await sb.from('profiles').select('user_id, display_name, email').in('user_id', ids);
       (profs||[]).forEach(p => names[p.user_id] = p.display_name || p.email || 'Trainee');
     }
+    const atLimit = active.length >= MAX_TRAINEES;
     let html = `<div class="group">
-      <h4>Invite a trainee</h4>
+      <h4>Invite a trainee <span class="muted-note">(${active.length}/${MAX_TRAINEES})</span></h4>
+      ${atLimit ? `<p class="muted-note">You've reached the ${MAX_TRAINEES}-trainee limit. Unlink a trainee to invite another.</p>` : `
       <div class="form-row"><label>Email (optional)<input type="email" id="inviteEmail" placeholder="trainee@email.com"></label></div>
-      <button class="btn btn-primary" id="genInviteBtn" style="width:100%">Generate invite code</button>
+      <button class="btn btn-primary" id="genInviteBtn" style="width:100%">Generate invite code</button>`}
       <div id="inviteResult"></div>
     </div>`;
     if (invited.length){
@@ -4389,7 +4392,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     });
     html += `</div>`;
     box.innerHTML = html;
-    document.getElementById('genInviteBtn').addEventListener('click', onGenerateInvite);
+    document.getElementById('genInviteBtn')?.addEventListener('click', onGenerateInvite);
     box.querySelectorAll('.coach-revoke').forEach(b => b.addEventListener('click', async () => {
       if (!confirm('Remove this link / invite?')) return;
       await sb.from('crossfit_coach_links').update({ status:'revoked' }).eq('id', b.dataset.id);
