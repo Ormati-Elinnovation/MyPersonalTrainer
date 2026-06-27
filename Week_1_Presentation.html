@@ -354,6 +354,12 @@
   .tag{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--panel-2);color:var(--ink-soft);vertical-align:1px}
   .tag-admin{background:rgba(229,123,142,.18);color:var(--danger)}
   .tag-coach{background:rgba(167,200,234,.18);color:var(--blue-2)}
+  /* trainee locked to view-only by their coach */
+  body.prog-locked #newProgramBtn,
+  body.prog-locked #addBlockBtn,
+  body.prog-locked #wtEditBtn{display:none !important}
+  .locked-note{display:none}
+  body.prog-locked .locked-note{display:block}
 
   /* SIDE PANEL */
   .side-panel{position:fixed;inset:0;z-index:55;display:none}
@@ -1024,6 +1030,7 @@
         <div id="adminContainer"><div class="search-empty">Loading…</div></div>
       </div>
       <div class="side-section" data-section="program">
+        <p class="muted-note locked-note">🔒 Your coach manages your program. You can log results and complete workouts, but editing is disabled.</p>
         <h4>Active Program</h4>
         <div class="program-summary" id="programSummary"></div>
         <h4 style="margin-top:18px">All Programs</h4>
@@ -1172,13 +1179,13 @@
           <label class="program-source-card"><input type="radio" name="source" value="file">
             <div>
               <div class="ps-name"><svg style="width:14px;height:14px;vertical-align:-2px"><use href="#i-video"/></svg> Upload Workout File</div>
-              <div class="ps-desc">PDF / image / text — AI parses it into days (coming soon).</div>
+              <div class="ps-desc">PDF / image / text — AI organizes it into days, categories &amp; timers.</div>
             </div>
           </label>
           <label class="program-source-card"><input type="radio" name="source" value="ai">
             <div>
               <div class="ps-name"><svg style="width:14px;height:14px;vertical-align:-2px"><use href="#i-bolt"/></svg> Generate with AI</div>
-              <div class="ps-desc">Describe goals — AI builds a program (coming soon).</div>
+              <div class="ps-desc">Describe goals — AI builds a full program.</div>
             </div>
           </label>
         </div>
@@ -1572,6 +1579,7 @@
   let targetUserId = null;
   let viewingTrainee = null; // { user_id, display_name } when a coach/admin is viewing someone else
   let viewProfile = null;    // profile of activeUserId() (self or the viewed trainee)
+  let selfEditingLocked = false; // true if my coach has set me view-only
   function activeUserId(){ return targetUserId || currentUser?.id; }
   function isViewingSelf(){ return !targetUserId || targetUserId === currentUser?.id; }
 
@@ -4212,6 +4220,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     }
     applyRoleVisibility();
     await maybeRedeemPendingInvite();
+    await refreshSelfLock();
     await bootUser();
     if (currentProfile && !currentProfile.onboarded_at) openOnboarding();
   }
@@ -4228,7 +4237,16 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     targetUserId = null; viewingTrainee = null;
     await bootUser();
   }
+  async function refreshSelfLock(){
+    try {
+      const { data } = await sb.from('crossfit_coach_links')
+        .select('trainee_can_edit').eq('trainee_user_id', currentUser.id).eq('status','active');
+      selfEditingLocked = (data||[]).some(x => x.trainee_can_edit === false);
+    } catch { selfEditingLocked = false; }
+  }
   function renderTraineeBanner(){
+    // A trainee viewing their own data who has been set view-only by their coach.
+    document.body.classList.toggle('prog-locked', isViewingSelf() && selfEditingLocked);
     let banner = document.getElementById('traineeBanner');
     if (!banner){
       banner = document.createElement('div');
@@ -4381,11 +4399,13 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     if (!active.length) html += `<p class="muted-note">No trainees yet. Generate an invite code above.</p>`;
     active.forEach(l => {
       const nm = names[l.trainee_user_id] || 'Trainee';
+      const canEdit = l.trainee_can_edit !== false;
       html += `<div class="coach-trainee">
-        <div class="coach-trainee-name">${esc(nm)}</div>
+        <div class="coach-trainee-name">${esc(nm)} <span class="tag ${canEdit?'tag-coach':''}">${canEdit?'can edit':'view-only'}</span></div>
         <div class="coach-trainee-actions">
           <button class="btn coach-view" data-id="${l.trainee_user_id}" data-name="${esc(nm)}">View progress</button>
           <button class="btn coach-programs" data-id="${l.trainee_user_id}" data-name="${esc(nm)}">Manage programs</button>
+          <button class="btn coach-edit-toggle" data-id="${l.id}" data-val="${canEdit?0:1}">${canEdit?'Lock editing':'Allow editing'}</button>
           <button class="btn coach-revoke" data-id="${l.id}">Unlink</button>
         </div>
       </div>`;
@@ -4393,6 +4413,10 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     html += `</div>`;
     box.innerHTML = html;
     document.getElementById('genInviteBtn')?.addEventListener('click', onGenerateInvite);
+    box.querySelectorAll('.coach-edit-toggle').forEach(b => b.addEventListener('click', async () => {
+      await sb.from('crossfit_coach_links').update({ trainee_can_edit: b.dataset.val==='1' }).eq('id', b.dataset.id);
+      renderCoachPanel();
+    }));
     box.querySelectorAll('.coach-revoke').forEach(b => b.addEventListener('click', async () => {
       if (!confirm('Remove this link / invite?')) return;
       await sb.from('crossfit_coach_links').update({ status:'revoked' }).eq('id', b.dataset.id);
