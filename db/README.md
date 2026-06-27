@@ -11,7 +11,7 @@ Apply order:
 | `01_schema.sql` | roles, extended profile fields, `crossfit_prs`, `crossfit_coach_links`, `assigned_by_coach_id`, `crossfit-avatars` bucket, 1RM backfill | **applied** |
 | `02_functions.sql` | `crossfit_is_admin / is_coach_of / can_access`, `is_admin` guard trigger, `crossfit_redeem_invite` RPC | **applied** |
 | `03_new_table_policies.sql` | RLS policies for the NEW tables + avatars bucket (safe; old app unaffected) | **applied** |
-| `04_rls_cutover_AFTER_DEPLOY.sql` | replace open policies on existing tables + make `videos` bucket private | **PENDING — run only after the new frontend is deployed** |
+| `04_rls_cutover_AFTER_DEPLOY.sql` | replace open policies on existing tables + make `videos` bucket private | **applied** (cutover done) |
 
 The admin flag was set manually:
 `update profiles set is_admin=true where ... email='or10mati@gmail.com';`
