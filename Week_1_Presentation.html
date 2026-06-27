@@ -3769,6 +3769,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       card.addEventListener('click', (e) => {
         if (e.target.closest('.pc-delete') || e.target.closest('.pc-edit')) return;
         if (id !== currentProgramId) switchProgram(id);
+        closeSidePanel();   // show the picked program on the main page, close the tray
       });
       const editBtn = card.querySelector('.pc-edit');
       if (editBtn) editBtn.addEventListener('click', async (e) => {
@@ -4404,7 +4405,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
         <div class="coach-trainee-name">${esc(nm)} <span class="tag ${canEdit?'tag-coach':''}">${canEdit?'can edit':'view-only'}</span></div>
         <div class="coach-trainee-actions">
           <button class="btn coach-view" data-id="${l.trainee_user_id}" data-name="${esc(nm)}">View progress</button>
-          <button class="btn coach-programs" data-id="${l.trainee_user_id}" data-name="${esc(nm)}">Manage programs</button>
+          <button class="btn coach-programs" data-id="${l.trainee_user_id}" data-name="${esc(nm)}">New program</button>
           <button class="btn coach-edit-toggle" data-id="${l.id}" data-val="${canEdit?0:1}">${canEdit?'Lock editing':'Allow editing'}</button>
           <button class="btn coach-revoke" data-id="${l.id}">Unlink</button>
         </div>
@@ -4424,9 +4425,8 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     }));
     box.querySelectorAll('.coach-view').forEach(b => b.addEventListener('click', () => viewUserData(b.dataset.id, b.dataset.name)));
     box.querySelectorAll('.coach-programs').forEach(b => b.addEventListener('click', async () => {
-      await viewUserData(b.dataset.id, b.dataset.name);
-      openSidePanel();
-      document.querySelector('.side-nav button[data-stab="program"]').click();
+      await viewUserData(b.dataset.id, b.dataset.name);  // switch to trainee context (closes the tray)
+      openProgramModal();                                // open the New Program page directly
     }));
   }
   async function onGenerateInvite(){
