@@ -4528,9 +4528,10 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
 
     const atLimit = active.length >= MAX_TRAINEES;
     let html = `<div class="cd-invite">
-      <div class="grow"><span class="lbl">Invite a trainee (${active.length}/${MAX_TRAINEES})</span>
-        <input type="email" id="cdInviteEmail" placeholder="trainee@email.com (optional)" ${atLimit?'disabled':''}></div>
-      <button class="btn btn-primary" id="cdGenInvite" ${atLimit?'disabled':''}>Generate invite</button>
+      <div class="grow"><span class="lbl">Add trainee by email (${active.length}/${MAX_TRAINEES})</span>
+        <input type="email" id="cdInviteEmail" placeholder="trainee@email.com" ${atLimit?'disabled':''}></div>
+      <button class="btn btn-primary" id="cdAddByEmail" ${atLimit?'disabled':''}>Add trainee</button>
+      <button class="btn" id="cdGenInvite" ${atLimit?'disabled':''}>Or generate code</button>
     </div>
     <div id="cdInviteOut"></div>`;
 
@@ -4572,7 +4573,16 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       const path = el.dataset.av; if (!path) return;
       avatarSignedUrl(path).then(u => { if (u){ el.style.backgroundImage=`url("${u}")`; el.textContent=''; } });
     });
-    // invite
+    // add by email (direct link)
+    document.getElementById('cdAddByEmail')?.addEventListener('click', async () => {
+      const email = document.getElementById('cdInviteEmail').value.trim();
+      if (!email) return;
+      const btn = document.getElementById('cdAddByEmail'); btn.disabled = true; btn.textContent = 'Adding…';
+      const { error } = await sb.rpc('crossfit_add_trainee_by_email', { p_email: email });
+      if (error){ alert(error.message); btn.disabled = false; btn.textContent = 'Add trainee'; return; }
+      renderCoachDashboard();
+    });
+    // invite by code
     document.getElementById('cdGenInvite')?.addEventListener('click', async () => {
       const email = document.getElementById('cdInviteEmail').value.trim() || null;
       const code = randomCode();
