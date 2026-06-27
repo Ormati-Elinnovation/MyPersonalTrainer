@@ -216,7 +216,13 @@
   .block-edit svg{width:13px;height:13px}
   .block h4{margin:0 0 4px;font-size:12.5px;color:var(--blue-2);letter-spacing:1.2px;text-transform:uppercase;font-family:'Space Grotesk';font-weight:600}
   .block .name{font-size:17px;font-weight:700;color:var(--ink);margin-bottom:8px}
-  .block .body{white-space:pre-wrap;font-size:14px;line-height:1.7;color:var(--ink-soft);flex:1}
+  .block .body{white-space:pre-wrap;font-size:14px;line-height:1.7;color:var(--ink-soft);flex:1;word-break:break-word}
+  .body-link{
+    color:var(--blue-2);text-decoration:underline;text-decoration-color:rgba(167,200,234,.4);
+    text-underline-offset:2px;cursor:pointer;transition:color .15s
+  }
+  .body-link:hover{color:var(--cyan);text-decoration-color:var(--cyan)}
+  .body-link:active{color:var(--blue-3)}
 
   /* Timer */
   .timer{margin-top:12px;padding:12px;background:var(--panel-3);border:1px solid var(--line);border-radius:12px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;position:relative;overflow:hidden;transition:border-color .25s,box-shadow .25s}
@@ -323,6 +329,37 @@
   .btn-secondary:hover{background:var(--panel-2);border-color:var(--line-2)}
   .btn-danger{background:rgba(229,123,142,.12);color:var(--danger);border:1px solid rgba(229,123,142,.4)}
   .btn-danger:hover{background:rgba(229,123,142,.22)}
+  /* ---- coach layer ---- */
+  .muted-note{color:var(--ink-soft);font-size:12.5px;margin:0 0 10px}
+  .trainee-banner{position:fixed;top:0;left:0;right:0;z-index:60;display:none;align-items:center;justify-content:space-between;gap:12px;padding:8px 16px;background:linear-gradient(135deg,var(--blue),var(--primary));color:var(--button-text);font-size:13px;font-weight:600;box-shadow:0 4px 14px var(--glow)}
+  .trainee-banner .btn{background:rgba(255,255,255,.18);color:var(--button-text);border:1px solid rgba(255,255,255,.35)}
+  body.has-trainee-banner{padding-top:40px}
+  .avatar-edit{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+  .avatar-preview{width:64px;height:64px;border-radius:16px;background:conic-gradient(from 200deg,var(--blue),var(--cyan),var(--primary),var(--blue));display:grid;place-items:center;color:var(--button-text);font-family:'Space Grotesk';font-weight:700;font-size:24px;flex-shrink:0;background-position:center}
+  .pr-list{display:flex;flex-direction:column;gap:8px}
+  .pr-row{display:grid;grid-template-columns:1fr 80px 70px auto;gap:8px;align-items:center}
+  .pr-name{font-size:13px;color:var(--ink);font-weight:600}
+  .pr-hist{font-size:11px;color:var(--ink-soft);font-weight:500}
+  .pr-row input,.pr-row select{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:7px 8px;color:var(--ink);font-family:'Inter';font-size:13px;outline:none;width:100%}
+  .pr-add{display:flex;gap:8px;margin-top:10px}
+  .pr-add input{flex:1;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;color:var(--ink);font-size:13px;outline:none}
+  .coach-row,.coach-trainee{display:flex;flex-direction:column;gap:8px;padding:10px 0;border-bottom:1px solid var(--line)}
+  .coach-row{flex-direction:row;align-items:center;justify-content:space-between}
+  .coach-trainee-name{font-weight:700;color:var(--ink)}
+  .coach-trainee-actions,.admin-user-actions{display:flex;flex-wrap:wrap;gap:6px}
+  .invite-out{margin-top:10px;padding:10px;border:1px dashed var(--line-2);border-radius:10px;font-size:12.5px;color:var(--ink);word-break:break-all}
+  .invite-out code,.coach-row code{background:var(--panel-2);padding:2px 6px;border-radius:6px;font-family:'Space Grotesk';font-weight:700}
+  .admin-user{padding:12px 0;border-bottom:1px solid var(--line)}
+  .admin-user-head{margin-bottom:8px}
+  .tag{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--panel-2);color:var(--ink-soft);vertical-align:1px}
+  .tag-admin{background:rgba(229,123,142,.18);color:var(--danger)}
+  .tag-coach{background:rgba(167,200,234,.18);color:var(--blue-2)}
+  /* trainee locked to view-only by their coach */
+  body.prog-locked #newProgramBtn,
+  body.prog-locked #addBlockBtn,
+  body.prog-locked #wtEditBtn{display:none !important}
+  .locked-note{display:none}
+  body.prog-locked .locked-note{display:block}
 
   /* SIDE PANEL */
   .side-panel{position:fixed;inset:0;z-index:55;display:none}
@@ -923,18 +960,39 @@
       <button class="modal-close" data-close-panel aria-label="Close">×</button>
     </div>
     <nav class="side-nav">
-      <button class="active" data-stab="profile"><svg><use href="#i-user"/></svg> Profile &amp; PRs</button>
+      <button class="active" data-stab="profile"><svg><use href="#i-user"/></svg> Profile</button>
+      <button data-stab="prs"><svg><use href="#i-barbell"/></svg> PRs &amp; Benchmarks</button>
       <button data-stab="program"><svg><use href="#i-clock"/></svg> Programs</button>
       <button data-stab="archive"><svg><use href="#i-archive"/></svg> Archive <span class="badge" id="archiveBadge">0</span></button>
       <button data-stab="search"><svg><use href="#i-search"/></svg> Search History</button>
+      <button id="coachTabBtn" data-stab="coach" style="display:none"><svg><use href="#i-group"/></svg> Coaching</button>
+      <button id="adminTabBtn" data-stab="admin" style="display:none"><svg><use href="#i-bolt"/></svg> Admin</button>
       <button data-stab="settings"><svg><use href="#i-cog"/></svg> Settings</button>
     </nav>
     <div class="side-body">
       <div class="side-section active" data-section="profile">
         <div class="group">
+          <div class="avatar-edit">
+            <div class="avatar-preview" id="profileAvatarPreview">?</div>
+            <div>
+              <button type="button" class="btn" id="profileAvatarBtn">Upload Photo</button>
+              <button type="button" class="btn" id="profileAvatarClear" style="margin-top:6px">Remove</button>
+              <input type="file" id="profileAvatarInput" accept="image/*" style="display:none">
+            </div>
+          </div>
           <h4>Personal Details</h4>
           <form id="profileForm">
             <div class="form-row"><label>Display Name<input type="text" name="display_name"></label></div>
+            <div class="form-row grid-2">
+              <label>Email<input type="email" name="email" placeholder="you@example.com"></label>
+              <label>Phone<input type="tel" name="phone" placeholder="+972..."></label>
+            </div>
+            <div class="form-row"><label>Address<input type="text" name="address" placeholder="City, country"></label></div>
+            <div class="form-row"><label>Affiliate / Box<input type="text" name="affiliate_box" placeholder="Where do you train?"></label></div>
+            <div class="form-row grid-2">
+              <label>Instagram<input type="text" name="instagram_handle" placeholder="@handle"></label>
+              <label>Twitter / X<input type="text" name="twitter_handle" placeholder="@handle"></label>
+            </div>
             <div class="form-row grid-3">
               <label>Age<input type="number" name="age" min="10" max="100"></label>
               <label>Weight (kg)<input type="number" name="weight_kg" step="0.1"></label>
@@ -949,23 +1007,30 @@
             <div class="form-row"><label>Goals<textarea name="goals" rows="2" placeholder="What are you training for?"></textarea></label></div>
           </form>
         </div>
-        <div class="group">
-          <h4>Personal Records (kg)</h4>
-          <form id="prForm">
-            <div class="form-row grid-2">
-              <label>Snatch<input type="number" name="snatch_1rm" step="0.5"></label>
-              <label>Clean &amp; Jerk<input type="number" name="clean_jerk_1rm" step="0.5"></label>
-            </div>
-            <div class="form-row grid-3">
-              <label>Back Squat<input type="number" name="back_squat_1rm" step="0.5"></label>
-              <label>Deadlift<input type="number" name="deadlift_1rm" step="0.5"></label>
-              <label>Bench<input type="number" name="bench_press_1rm" step="0.5"></label>
-            </div>
-          </form>
+        <div class="group" id="accountSecurityGroup">
+          <h4>Account &amp; Security</h4>
+          <div class="form-row grid-2">
+            <label>New Email<input type="email" id="authNewEmail" placeholder="new@email.com"></label>
+            <label>&nbsp;<button type="button" class="btn" id="authEmailBtn">Update Email</button></label>
+          </div>
+          <div class="form-row grid-2">
+            <label>New Password<input type="password" id="authNewPass" placeholder="••••••••"></label>
+            <label>&nbsp;<button type="button" class="btn" id="authPassBtn">Update Password</button></label>
+          </div>
         </div>
         <button class="btn btn-primary" id="profileSave" style="width:100%">Save Profile</button>
       </div>
+      <div class="side-section" data-section="prs">
+        <div id="prsContainer"><div class="search-empty">Loading…</div></div>
+      </div>
+      <div class="side-section" data-section="coach">
+        <div id="coachContainer"><div class="search-empty">Loading…</div></div>
+      </div>
+      <div class="side-section" data-section="admin">
+        <div id="adminContainer"><div class="search-empty">Loading…</div></div>
+      </div>
       <div class="side-section" data-section="program">
+        <p class="muted-note locked-note">🔒 Your coach manages your program. You can log results and complete workouts, but editing is disabled.</p>
         <h4>Active Program</h4>
         <div class="program-summary" id="programSummary"></div>
         <h4 style="margin-top:18px">All Programs</h4>
@@ -1012,6 +1077,14 @@
           </div>
           <button id="faceIdToggleBtn" class="primary">Enable</button>
         </div>
+        <div class="setting-row" style="flex-direction:column;align-items:stretch;gap:8px">
+          <div>
+            <div class="label">Join a coach</div>
+            <div class="sub">Have an invite code? Enter it to link with your coach.</div>
+          </div>
+          <input type="text" id="joinCoachInput" placeholder="Invite code" style="background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:9px 12px;color:var(--ink);font-family:'Inter';font-size:13px;outline:none;width:100%">
+          <button id="joinCoachBtn" class="primary">Link with coach</button>
+        </div>
         <div class="setting-row">
           <div>
             <div class="label">Sign Out</div>
@@ -1023,6 +1096,29 @@
     </div>
   </div>
 </aside>
+
+<!-- Onboarding modal -->
+<div class="modal" id="onboardingModal" aria-hidden="true">
+  <div class="modal-backdrop"></div>
+  <div class="modal-card" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h3>Welcome! Tell us about you</h3>
+    </div>
+    <form class="modal-body" id="onboardingForm">
+      <div class="form-row"><label>Display Name<input type="text" name="display_name" required></label></div>
+      <div class="form-row"><label>Phone<input type="tel" name="phone" placeholder="+972..."></label></div>
+      <div class="form-row"><label>Affiliate / Box<input type="text" name="affiliate_box" placeholder="Where do you train?"></label></div>
+      <div class="form-row grid-2">
+        <label>Instagram<input type="text" name="instagram_handle" placeholder="@handle"></label>
+        <label>Twitter / X<input type="text" name="twitter_handle" placeholder="@handle"></label>
+      </div>
+      <p class="muted-note">You can add a photo and more details later in Profile.</p>
+    </form>
+    <div class="modal-foot">
+      <button class="btn btn-primary" id="onboardingSave" style="width:100%">Save &amp; continue</button>
+    </div>
+  </div>
+</div>
 
 <!-- 5-second countdown overlay -->
 <div class="countdown-overlay" id="countdownOverlay" aria-hidden="true">
@@ -1083,13 +1179,13 @@
           <label class="program-source-card"><input type="radio" name="source" value="file">
             <div>
               <div class="ps-name"><svg style="width:14px;height:14px;vertical-align:-2px"><use href="#i-video"/></svg> Upload Workout File</div>
-              <div class="ps-desc">PDF / image / text — AI parses it into days (coming soon).</div>
+              <div class="ps-desc">PDF / image / text — AI organizes it into days, categories &amp; timers.</div>
             </div>
           </label>
           <label class="program-source-card"><input type="radio" name="source" value="ai">
             <div>
               <div class="ps-name"><svg style="width:14px;height:14px;vertical-align:-2px"><use href="#i-bolt"/></svg> Generate with AI</div>
-              <div class="ps-desc">Describe goals — AI builds a program (coming soon).</div>
+              <div class="ps-desc">Describe goals — AI builds a full program.</div>
             </div>
           </label>
         </div>
@@ -1219,6 +1315,15 @@
   }
   function uid(){ return 'b' + Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4); }
   function esc(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function linkify(escapedHtml){
+    // Convert plain http(s) URLs in already-escaped HTML to clickable anchors
+    return String(escapedHtml).replace(/(https?:\/\/[^\s<>"]+)/g, (url) => {
+      // Strip trailing punctuation that shouldn't be in URL
+      let trail = '';
+      while (/[.,;:!?)\]]$/.test(url)){ trail = url.slice(-1) + trail; url = url.slice(0,-1); }
+      return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="body-link">${url}</a>${trail}`;
+    });
+  }
 
   /* ============ MOTIVATIONAL QUOTES (100) ============ */
   const QUOTES = [
@@ -1469,8 +1574,17 @@
   let currentProgramId = null;
   const PROGRAM_KEY = 'crossfit-active-program';
 
+  /* ---- Coach layer: whose data are we viewing/editing ----
+     Defaults to the logged-in user. A coach/admin can point it at a trainee. */
+  let targetUserId = null;
+  let viewingTrainee = null; // { user_id, display_name } when a coach/admin is viewing someone else
+  let viewProfile = null;    // profile of activeUserId() (self or the viewed trainee)
+  let selfEditingLocked = false; // true if my coach has set me view-only
+  function activeUserId(){ return targetUserId || currentUser?.id; }
+  function isViewingSelf(){ return !targetUserId || targetUserId === currentUser?.id; }
+
   async function loadPrograms(){
-    const { data, error } = await sb.from('programs').select('*').eq('user_id', currentUser.id).order('position').order('created_at');
+    const { data, error } = await sb.from('programs').select('*').eq('user_id', activeUserId()).order('position').order('created_at');
     if (error){ console.error(error); return []; }
     return data || [];
   }
@@ -1478,7 +1592,7 @@
     if (programs.length) return;
     const id = 'prg-default-' + Date.now();
     await sb.from('programs').insert({
-      id, user_id: currentUser.id, name: '4-Week CrossFit Prep',
+      id, user_id: activeUserId(), name: '4-Week CrossFit Prep',
       description: 'Foundation → Intensity → Peak → Taper.',
       source: 'template', start_date: PROGRAM_START, is_default: true, position: 0
     });
@@ -1487,10 +1601,11 @@
   async function createProgram(opts){
     const id = 'prg-' + Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4);
     const { error } = await sb.from('programs').insert({
-      id, user_id: currentUser.id,
+      id, user_id: activeUserId(),
       name: opts.name, description: opts.description || '',
       source: opts.source || 'manual', start_date: opts.start_date || null,
-      is_default: false, position: programs.length
+      is_default: false, position: programs.length,
+      assigned_by_coach_id: isViewingSelf() ? null : currentUser.id
     });
     if (error){ alert('Could not create program: ' + error.message); throw error; }
     programs = await loadPrograms();
@@ -1515,7 +1630,7 @@
       const newDate = addDays(startDate, offset);
       d.v.forEach((b, i) => {
         rows.push({
-          id: uid(), user_id: currentUser.id, program_id: programId,
+          id: uid(), user_id: activeUserId(), program_id: programId,
           date: newDate, icon: b.icon, cat: b.cat, name: b.name,
           body: b.body || '', timer: b.timer || null, position: i
         });
@@ -1632,7 +1747,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       const date = addDays(startDate, day.date_offset || 0);
       (day.blocks || []).forEach((b, i) => {
         rows.push({
-          id: uid(), user_id: currentUser.id, program_id: programId,
+          id: uid(), user_id: activeUserId(), program_id: programId,
           date, icon: b.icon || 'i-flame', cat: b.cat || 'Workout',
           name: b.name || 'Workout', body: b.body || '',
           timer: b.timer || null, position: i
@@ -1647,7 +1762,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
 
   async function switchProgram(id){
     currentProgramId = id;
-    try { localStorage.setItem(PROGRAM_KEY, id); } catch {}
+    if (isViewingSelf()){ try { localStorage.setItem(PROGRAM_KEY, id); } catch {} }
     PROGRAM = await loadProgramFromDB();
     // Reset selection to today or program start
     if (!PROGRAM[selectedKey]){
@@ -1727,15 +1842,18 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
   });
 
   sb.auth.onAuthStateChange((event, session) => {
-    // Guest mode active — keep user logged in as guest if no session
-    if (session && session.user){
-      currentUser = session.user;
-      hideAuthScreen();
-      bootUser();
-    } else {
-      currentUser = { id: GUEST_USER_ID, email: 'guest@local' };
-      hideAuthScreen();
+    // Initial load is handled by the boot IIFE below; ignore silent/non-login events.
+    if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') return;
+    if (event === 'SIGNED_OUT' || !session?.user){
+      currentUser = null;
+      showAuthScreen();
+      return;
     }
+    // SIGNED_IN
+    const switched = currentUser?.id !== session.user.id;
+    currentUser = session.user;
+    hideAuthScreen();
+    if (switched) afterLogin();
   });
 
   /* ============ FACE ID (WebAuthn) ============ */
@@ -1842,7 +1960,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       // Verified — proceed with existing session
       currentUser = session.user;
       hideAuthScreen();
-      bootUser();
+      afterLogin();
     } catch(e){
       console.error(e);
       setAuthError('Face ID failed: ' + (e.message || e.name));
@@ -1851,7 +1969,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
 
   /* ============ STORAGE LAYER ============ */
   async function ensureUserSeed(){
-    const { count, error } = await sb.from('blocks').select('id', { count: 'exact', head: true }).eq('user_id', currentUser.id);
+    const { count, error } = await sb.from('blocks').select('id', { count: 'exact', head: true }).eq('user_id', activeUserId());
     if (error){ console.error(error); return; }
     if (count > 0) return;
     const def = buildDefaultProgram();
@@ -1859,7 +1977,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     Object.entries(def).forEach(([date, blocks]) => {
       blocks.forEach((b, i) => {
         rows.push({
-          id: b.id, user_id: currentUser.id, date, icon: b.icon, cat: b.cat, name: b.name,
+          id: b.id, user_id: activeUserId(), date, icon: b.icon, cat: b.cat, name: b.name,
           body: b.body || '', timer: b.timer || null, position: i
         });
       });
@@ -1870,7 +1988,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
 
   async function loadProgramFromDB(){
     if (!currentProgramId) return {};
-    const { data, error } = await sb.from('blocks').select('*').eq('user_id', currentUser.id).eq('program_id', currentProgramId).order('date').order('position');
+    const { data, error } = await sb.from('blocks').select('*').eq('user_id', activeUserId()).eq('program_id', currentProgramId).order('date').order('position');
     if (error){ console.error(error); return {}; }
     const program = {};
     data.forEach(b => {
@@ -1880,7 +1998,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     return program;
   }
   async function loadTrackerFromDB(){
-    const { data, error } = await sb.from('tracker').select('*').eq('user_id', currentUser.id);
+    const { data, error } = await sb.from('tracker').select('*').eq('user_id', activeUserId());
     if (error){ console.error(error); return {}; }
     const t = {};
     data.forEach(row => { t[row.block_id] = { done: !!row.done, notes: row.notes || '', results: row.results || [] }; });
@@ -1888,19 +2006,19 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
   }
   async function upsertBlock(date, block, position){
     const { error } = await sb.from('blocks').upsert({
-      id: block.id, user_id: currentUser.id, program_id: currentProgramId,
+      id: block.id, user_id: activeUserId(), program_id: currentProgramId,
       date, icon: block.icon, cat: block.cat, name: block.name,
       body: block.body || '', timer: block.timer || null, position, updated_at: new Date().toISOString()
     });
     if (error){ alert('Could not save: ' + error.message); throw error; }
   }
   async function deleteBlockFromDB(id){
-    const { error } = await sb.from('blocks').delete().eq('id', id).eq('user_id', currentUser.id);
+    const { error } = await sb.from('blocks').delete().eq('id', id).eq('user_id', activeUserId());
     if (error){ alert('Could not delete: ' + error.message); throw error; }
   }
   async function saveTrackerForBlock(blockId, state){
     const { error } = await sb.from('tracker').upsert({
-      block_id: blockId, user_id: currentUser.id,
+      block_id: blockId, user_id: activeUserId(),
       done: !!state.done, notes: state.notes || '', results: state.results || [],
       updated_at: new Date().toISOString()
     });
@@ -1974,7 +2092,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
 
   async function uploadVideoToStorage(blockId, file, onProgress){
     const safe = (file.name || `clip-${Date.now()}.mov`).replace(/[^\w.\-]/g, '_');
-    const path = `${currentUser.id}/${blockId}/${Date.now()}-${safe}`;
+    const path = `${activeUserId()}/${blockId}/${Date.now()}-${safe}`;
     const { data: { session } } = await sb.auth.getSession();
     if (!session?.access_token) throw new Error('Not signed in');
 
@@ -2004,7 +2122,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     });
 
     const { data, error } = await sb.from('videos').insert({
-      block_id: blockId, user_id: currentUser.id, storage_path: path,
+      block_id: blockId, user_id: activeUserId(), storage_path: path,
       name: file.name || safe, size: file.size, content_type: file.type
     }).select().single();
     if (error){
@@ -2014,21 +2132,34 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     return data;
   }
   async function listVideosForBlock(blockId){
-    const { data, error } = await sb.from('videos').select('*').eq('block_id', blockId).eq('user_id', currentUser.id).order('added_at');
+    const { data, error } = await sb.from('videos').select('*').eq('block_id', blockId).eq('user_id', activeUserId()).order('added_at');
     if (error){ console.error(error); return []; }
-    return data.map(v => ({ ...v, url: sb.storage.from('videos').getPublicUrl(v.storage_path).data.publicUrl }));
+    // Private bucket → generate signed URLs (1h). Falls back to public URL if signing fails.
+    const out = [];
+    for (const v of (data||[])){
+      let url = null;
+      try {
+        const { data: s } = await sb.storage.from('videos').createSignedUrl(v.storage_path, 3600);
+        url = s?.signedUrl || null;
+      } catch {}
+      if (!url) url = sb.storage.from('videos').getPublicUrl(v.storage_path).data.publicUrl;
+      out.push({ ...v, url });
+    }
+    return out;
   }
   async function deleteVideoFromDB(id, storagePath){
     if (storagePath) await sb.storage.from('videos').remove([storagePath]);
-    await sb.from('videos').delete().eq('id', id).eq('user_id', currentUser.id);
+    await sb.from('videos').delete().eq('id', id).eq('user_id', activeUserId());
   }
 
   async function loadProfile(){
-    const { data, error } = await sb.from('profiles').select('*').eq('user_id', currentUser.id).maybeSingle();
+    const { data, error } = await sb.from('profiles').select('*').eq('user_id', activeUserId()).maybeSingle();
     if (error){ console.error(error); return null; }
     return data;
   }
   async function saveProfile(profile){
+    // Profiles are self-write only (RLS). Always write the logged-in user's own profile,
+    // even when a coach/admin is viewing a trainee.
     const { error } = await sb.from('profiles').upsert({
       user_id: currentUser.id, ...profile, updated_at: new Date().toISOString()
     });
@@ -2036,9 +2167,9 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
   }
   async function loadArchive(){
     const [trackerRes, blocksRes, finRes] = await Promise.all([
-      sb.from('tracker').select('block_id, done, notes, results, updated_at').eq('user_id', currentUser.id),
-      sb.from('blocks').select('id, date, cat, name, icon, position').eq('user_id', currentUser.id).order('date').order('position'),
-      sb.from('day_finished').select('date, finished_at').eq('user_id', currentUser.id)
+      sb.from('tracker').select('block_id, done, notes, results, updated_at').eq('user_id', activeUserId()),
+      sb.from('blocks').select('id, date, cat, name, icon, position').eq('user_id', activeUserId()).order('date').order('position'),
+      sb.from('day_finished').select('date, finished_at').eq('user_id', activeUserId())
     ]);
     if (trackerRes.error || blocksRes.error || finRes.error){
       console.error(trackerRes.error || blocksRes.error || finRes.error);
@@ -2388,7 +2519,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     PROGRAM[date].push(newBlock);
     renderCalendar(); renderDayDetail(); renderWeeklyTable();
     const { error } = await sb.from('blocks').insert({
-      id: newId, user_id: currentUser.id, program_id: currentProgramId,
+      id: newId, user_id: activeUserId(), program_id: currentProgramId,
       date, icon: b.icon, cat: b.cat, name: b.name,
       body: b.body || '', timer: b.timer || null, position: newPos
     });
@@ -2587,7 +2718,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       </div>
       <h4>${esc(b.cat)}</h4>
       <div class="name">${esc(b.name)}</div>
-      <div class="body">${esc(b.body)}</div>
+      <div class="body">${linkify(esc(b.body))}</div>
       ${timerHTML(b.timer)}
     `;
     el.querySelector('.block-edit').addEventListener('click', () => openModal(b.id));
@@ -3006,7 +3137,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
   /* ============ FINISH DAY ============ */
   let finishedDates = new Set();
   async function loadFinishedDates(){
-    const { data, error } = await sb.from('day_finished').select('date').eq('user_id', currentUser.id);
+    const { data, error } = await sb.from('day_finished').select('date').eq('user_id', activeUserId());
     if (error){ console.error(error); return new Set(); }
     return new Set((data || []).map(d => d.date));
   }
@@ -3026,7 +3157,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     if (btn){ btn.disabled = true; btn.innerHTML = 'Ending...'; }
     try {
       const { error } = await sb.from('day_finished').upsert({
-        user_id: currentUser.id, date: selectedKey, finished_at: new Date().toISOString()
+        user_id: activeUserId(), date: selectedKey, finished_at: new Date().toISOString()
       });
       if (error) throw error;
       finishedDates.add(selectedKey);
@@ -3041,7 +3172,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
   async function unfinishDay(dateKey){
     if (!confirm('Reopen this day? It will be removed from the archive.')) return;
     try {
-      const { error } = await sb.from('day_finished').delete().eq('user_id', currentUser.id).eq('date', dateKey);
+      const { error } = await sb.from('day_finished').delete().eq('user_id', activeUserId()).eq('date', dateKey);
       if (error) throw error;
       finishedDates.delete(dateKey);
       renderDayDetail(); renderCalendar(); updateArchiveBadge();
@@ -3353,6 +3484,9 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       if (btn.dataset.stab === 'archive') renderArchive();
       if (btn.dataset.stab === 'program'){ renderProgramSummary(); renderProgramsList(); }
       if (btn.dataset.stab === 'search') document.getElementById('searchInput').focus();
+      if (btn.dataset.stab === 'prs') renderPrs();
+      if (btn.dataset.stab === 'coach') renderCoachPanel();
+      if (btn.dataset.stab === 'admin') renderAdminPanel();
     });
   });
 
@@ -3365,8 +3499,8 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
   async function updateArchiveBadge(){
     try {
       const [tr, fn] = await Promise.all([
-        sb.from('tracker').select('block_id, blocks!inner(date)').eq('user_id', currentUser.id).eq('done', true),
-        sb.from('day_finished').select('date').eq('user_id', currentUser.id)
+        sb.from('tracker').select('block_id, blocks!inner(date)').eq('user_id', activeUserId()).eq('done', true),
+        sb.from('day_finished').select('date').eq('user_id', activeUserId())
       ]);
       const dates = new Set();
       (tr.data || []).forEach(t => { if (t.blocks?.date) dates.add(t.blocks.date); });
@@ -3395,11 +3529,11 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       // Query blocks matching in name/body/cat
       const { data: blockHits } = await sb.from('blocks')
         .select('id, date, cat, name, body')
-        .eq('user_id', currentUser.id);
+        .eq('user_id', activeUserId());
       // Query tracker matching in notes/results (with block join)
       const { data: trackerHits } = await sb.from('tracker')
         .select('block_id, notes, results, blocks!inner(date, cat, name, icon)')
-        .eq('user_id', currentUser.id);
+        .eq('user_id', activeUserId());
 
       const matches = [];
       (blockHits || []).forEach(b => {
@@ -3469,44 +3603,59 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const name = currentProfile?.display_name || currentUser.email.split('@')[0];
     document.getElementById('sideName').textContent = name;
     document.getElementById('sideEmail').textContent = currentUser.email;
-    document.getElementById('sideAvatar').textContent = name.charAt(0).toUpperCase();
+    const sideAvatar = document.getElementById('sideAvatar');
+    if (currentProfile?.avatar_url){
+      avatarSignedUrl(currentProfile.avatar_url).then(u => {
+        if (u){ sideAvatar.style.backgroundImage = `url("${u}")`; sideAvatar.style.backgroundSize='cover'; sideAvatar.textContent=''; }
+      });
+    } else { sideAvatar.style.backgroundImage=''; sideAvatar.textContent = name.charAt(0).toUpperCase(); }
     fillProfileForm();
     updateFaceIdToggleLabel();
+    applyRoleVisibility();
   }
 
   function fillProfileForm(){
     const p = currentProfile || {};
     const pf = document.getElementById('profileForm').elements;
-    const prf = document.getElementById('prForm').elements;
     pf.display_name.value = p.display_name || '';
+    pf.email.value = p.email || currentUser.email || '';
+    pf.phone.value = p.phone || '';
+    pf.address.value = p.address || '';
+    pf.affiliate_box.value = p.affiliate_box || '';
+    pf.instagram_handle.value = p.instagram_handle || '';
+    pf.twitter_handle.value = p.twitter_handle || '';
     pf.age.value = p.age ?? '';
     pf.weight_kg.value = p.weight_kg ?? '';
     pf.height_cm.value = p.height_cm ?? '';
     pf.experience_level.value = p.experience_level || 'intermediate';
     pf.goals.value = p.goals || '';
-    prf.snatch_1rm.value = p.snatch_1rm ?? '';
-    prf.clean_jerk_1rm.value = p.clean_jerk_1rm ?? '';
-    prf.back_squat_1rm.value = p.back_squat_1rm ?? '';
-    prf.deadlift_1rm.value = p.deadlift_1rm ?? '';
-    prf.bench_press_1rm.value = p.bench_press_1rm ?? '';
+    // avatar preview
+    const prev = document.getElementById('profileAvatarPreview');
+    if (p.avatar_url){
+      avatarSignedUrl(p.avatar_url).then(u => { if (u){ prev.style.backgroundImage=`url("${u}")`; prev.style.backgroundSize='cover'; prev.textContent=''; } });
+    } else { prev.style.backgroundImage=''; prev.textContent = (p.display_name||currentUser.email||'?').charAt(0).toUpperCase(); }
   }
 
-  document.getElementById('profileSave').addEventListener('click', async () => {
+  function readProfileForm(){
     const pf = document.getElementById('profileForm').elements;
-    const prf = document.getElementById('prForm').elements;
-    const data = {
+    return {
       display_name: pf.display_name.value.trim() || null,
+      email: pf.email.value.trim() || null,
+      phone: pf.phone.value.trim() || null,
+      address: pf.address.value.trim() || null,
+      affiliate_box: pf.affiliate_box.value.trim() || null,
+      instagram_handle: pf.instagram_handle.value.trim() || null,
+      twitter_handle: pf.twitter_handle.value.trim() || null,
       age: pf.age.value ? parseInt(pf.age.value,10) : null,
       weight_kg: pf.weight_kg.value ? parseFloat(pf.weight_kg.value) : null,
       height_cm: pf.height_cm.value ? parseFloat(pf.height_cm.value) : null,
       experience_level: pf.experience_level.value,
-      goals: pf.goals.value.trim() || null,
-      snatch_1rm:     prf.snatch_1rm.value     ? parseFloat(prf.snatch_1rm.value)     : null,
-      clean_jerk_1rm: prf.clean_jerk_1rm.value ? parseFloat(prf.clean_jerk_1rm.value) : null,
-      back_squat_1rm: prf.back_squat_1rm.value ? parseFloat(prf.back_squat_1rm.value) : null,
-      deadlift_1rm:   prf.deadlift_1rm.value   ? parseFloat(prf.deadlift_1rm.value)   : null,
-      bench_press_1rm:prf.bench_press_1rm.value? parseFloat(prf.bench_press_1rm.value): null
+      goals: pf.goals.value.trim() || null
     };
+  }
+
+  document.getElementById('profileSave').addEventListener('click', async () => {
+    const data = readProfileForm();
     const btn = document.getElementById('profileSave');
     btn.disabled = true; btn.textContent = 'Saving...';
     try {
@@ -3516,6 +3665,62 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       btn.textContent = 'Saved ✓';
       setTimeout(() => { btn.textContent = 'Save Profile'; btn.disabled = false; }, 1200);
     } catch(e){ btn.textContent = 'Save Profile'; btn.disabled = false; }
+  });
+
+  /* ---- Avatar upload (crossfit-avatars bucket, private, signed URLs) ---- */
+  const _avatarUrlCache = {};
+  async function avatarSignedUrl(path){
+    if (!path) return null;
+    if (_avatarUrlCache[path]) return _avatarUrlCache[path];
+    try {
+      const { data, error } = await sb.storage.from('crossfit-avatars').createSignedUrl(path, 3600);
+      if (error) return null;
+      _avatarUrlCache[path] = data.signedUrl;
+      return data.signedUrl;
+    } catch { return null; }
+  }
+  document.getElementById('profileAvatarBtn').addEventListener('click', () => document.getElementById('profileAvatarInput').click());
+  document.getElementById('profileAvatarInput').addEventListener('change', async (e) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g,'') || 'jpg';
+    const path = `${currentUser.id}/avatar-${Date.now()}.${ext}`;
+    try {
+      const { error } = await sb.storage.from('crossfit-avatars').upload(path, file, { upsert: true, contentType: file.type });
+      if (error) throw error;
+      await saveProfile({ avatar_url: path });
+      currentProfile = Object.assign({}, currentProfile, { avatar_url: path });
+      delete _avatarUrlCache[path];
+      renderSidePanel();
+    } catch(err){ alert('Could not upload photo: ' + (err.message||err)); }
+    e.target.value = '';
+  });
+  document.getElementById('profileAvatarClear').addEventListener('click', async () => {
+    try {
+      if (currentProfile?.avatar_url){ try { await sb.storage.from('crossfit-avatars').remove([currentProfile.avatar_url]); } catch {} }
+      await saveProfile({ avatar_url: null });
+      currentProfile = Object.assign({}, currentProfile, { avatar_url: null });
+      renderSidePanel();
+    } catch(err){ alert('Could not remove photo: ' + (err.message||err)); }
+  });
+
+  /* ---- Account: email / password updates via Supabase Auth ---- */
+  document.getElementById('authEmailBtn').addEventListener('click', async () => {
+    const v = document.getElementById('authNewEmail').value.trim();
+    if (!v) return;
+    const { error } = await sb.auth.updateUser({ email: v });
+    if (error){ alert('Email update failed: ' + error.message); return; }
+    await saveProfile({ email: v });
+    currentProfile = Object.assign({}, currentProfile, { email: v });
+    alert('Check your inbox to confirm the new email address.');
+    document.getElementById('authNewEmail').value = '';
+  });
+  document.getElementById('authPassBtn').addEventListener('click', async () => {
+    const v = document.getElementById('authNewPass').value;
+    if (!v || v.length < 6){ alert('Password must be at least 6 characters.'); return; }
+    const { error } = await sb.auth.updateUser({ password: v });
+    if (error){ alert('Password update failed: ' + error.message); return; }
+    alert('Password updated.');
+    document.getElementById('authNewPass').value = '';
   });
 
   function renderProgramSummary(){
@@ -3761,7 +3966,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const btn = document.getElementById('resetProgramBtn');
     if (btn){ btn.disabled = true; btn.textContent = 'Resetting...'; }
     try {
-      await sb.from('blocks').delete().eq('user_id', currentUser.id).eq('program_id', currentProgramId);
+      await sb.from('blocks').delete().eq('user_id', activeUserId()).eq('program_id', currentProgramId);
       await seedProgramFromTemplate(currentProgramId, programs.find(p=>p.id===currentProgramId)?.start_date || PROGRAM_START);
       PROGRAM = await loadProgramFromDB();
       renderCalendar(); renderDayDetail(); renderProgramSummary();
@@ -3822,6 +4027,8 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
   document.getElementById('signOutBtn').addEventListener('click', async () => {
     await sb.auth.signOut();
     PROGRAM = {}; tkData = {}; currentUser = null; currentProfile = null;
+    targetUserId = null; viewingTrainee = null; viewProfile = null;
+    renderTraineeBanner();
     // showAuthScreen will be triggered by onAuthStateChange
   });
 
@@ -3922,16 +4129,24 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
   async function bootUser(){
     setDayLoading('Loading your training data...');
     try {
+      const self = isViewingSelf();
       programs = await loadPrograms();
-      await ensureDefaultProgram();
-      let savedId;
-      try { savedId = localStorage.getItem(PROGRAM_KEY); } catch {}
-      const exists = savedId && programs.some(p => p.id === savedId);
-      currentProgramId = exists ? savedId : (programs.find(p => p.is_default)?.id || programs[0]?.id);
-      try { localStorage.setItem(PROGRAM_KEY, currentProgramId || ''); } catch {}
+      // Only auto-create a starter program / seed blocks for the logged-in user —
+      // never inject a template into a trainee a coach is merely viewing.
+      if (self) await ensureDefaultProgram();
+      if (self){
+        let savedId;
+        try { savedId = localStorage.getItem(PROGRAM_KEY); } catch {}
+        const exists = savedId && programs.some(p => p.id === savedId);
+        currentProgramId = exists ? savedId : (programs.find(p => p.is_default)?.id || programs[0]?.id);
+        try { localStorage.setItem(PROGRAM_KEY, currentProgramId || ''); } catch {}
+      } else {
+        currentProgramId = programs.find(p => p.is_default)?.id || programs[0]?.id || null;
+      }
 
-      await ensureUserSeed();
-      currentProfile = await loadProfile();
+      if (self) await ensureUserSeed();
+      viewProfile = await loadProfile();
+      if (self) currentProfile = viewProfile;
       PROGRAM = await loadProgramFromDB();
       tkData  = await loadTrackerFromDB();
       if (!PROGRAM[selectedKey]){
@@ -3941,6 +4156,8 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       weekStart = startOfWeek(selectedKey);
       finishedDates = await loadFinishedDates();
       renderCalendar(); renderDayDetail(); buildCharts(); updateArchiveBadge(); renderProgramsList();
+      renderTraineeBanner();
+      if (document.querySelector('.side-section[data-section="prs"].active')) renderPrs();
       if (!realtimeSet){ setupRealtime(); realtimeSet = true; }
     } catch(e){
       console.error('Boot error:', e);
@@ -3948,22 +4165,390 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     }
   }
 
+  /* ====================================================================
+     COACH LAYER — roles, onboarding, PRs, coaching, admin
+  ==================================================================== */
+
+  function applyRoleVisibility(){
+    const coachBtn = document.getElementById('coachTabBtn');
+    const adminBtn = document.getElementById('adminTabBtn');
+    if (coachBtn) coachBtn.style.display = '';                                  // self-serve: anyone can open & enable
+    if (adminBtn) adminBtn.style.display = currentProfile?.is_admin ? '' : 'none';
+  }
+
+  /* ---- post-login orchestration ---- */
+  let pendingInviteCode = null;
+  function capturePendingInviteFromUrl(){
+    try {
+      const u = new URL(window.location.href);
+      const code = u.searchParams.get('join');
+      if (code){
+        pendingInviteCode = code.trim();
+        u.searchParams.delete('join');
+        history.replaceState({}, '', u.pathname + (u.search || '') + u.hash);
+      }
+    } catch {}
+  }
+  async function maybeRedeemPendingInvite(){
+    if (!pendingInviteCode) return;
+    const code = pendingInviteCode; pendingInviteCode = null;
+    await redeemCoachCode(code, true);
+  }
+  async function redeemCoachCode(code, silent){
+    try {
+      const { data, error } = await sb.rpc('crossfit_redeem_invite', { code });
+      if (error) throw error;
+      if (!silent) alert('You are now linked with your coach.');
+      else setTimeout(() => alert('You are now linked with your coach.'), 400);
+      return data;
+    } catch(e){
+      alert('Invite code error: ' + (e.message || e));
+      return null;
+    }
+  }
+
+  async function afterLogin(){
+    hideAuthScreen();
+    targetUserId = null; viewingTrainee = null;
+    currentProfile = await loadProfile();
+    if (!currentProfile){
+      await saveProfile({ display_name: (currentUser.email||'Athlete').split('@')[0], email: currentUser.email });
+      currentProfile = await loadProfile();
+    } else if (!currentProfile.email && currentUser.email){
+      await saveProfile({ email: currentUser.email });
+      currentProfile.email = currentUser.email;
+    }
+    applyRoleVisibility();
+    await maybeRedeemPendingInvite();
+    await refreshSelfLock();
+    await bootUser();
+    if (currentProfile && !currentProfile.onboarded_at) openOnboarding();
+  }
+
+  /* ---- viewing another user's data (coach / admin) ---- */
+  async function viewUserData(userId, displayName){
+    targetUserId = userId;
+    viewingTrainee = userId === currentUser.id ? null : { user_id: userId, display_name: displayName };
+    closeSidePanel();
+    await bootUser();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  async function exitTraineeView(){
+    targetUserId = null; viewingTrainee = null;
+    await bootUser();
+  }
+  async function refreshSelfLock(){
+    try {
+      const { data } = await sb.from('crossfit_coach_links')
+        .select('trainee_can_edit').eq('trainee_user_id', currentUser.id).eq('status','active');
+      selfEditingLocked = (data||[]).some(x => x.trainee_can_edit === false);
+    } catch { selfEditingLocked = false; }
+  }
+  function renderTraineeBanner(){
+    // A trainee viewing their own data who has been set view-only by their coach.
+    document.body.classList.toggle('prog-locked', isViewingSelf() && selfEditingLocked);
+    let banner = document.getElementById('traineeBanner');
+    if (!banner){
+      banner = document.createElement('div');
+      banner.id = 'traineeBanner';
+      banner.className = 'trainee-banner';
+      document.body.appendChild(banner);
+    }
+    if (viewingTrainee){
+      banner.style.display = 'flex';
+      banner.innerHTML = `<span>👁 Viewing <strong>${esc(viewingTrainee.display_name || 'trainee')}</strong></span>
+        <button class="btn" id="exitTraineeBtn">Back to my workspace</button>`;
+      document.getElementById('exitTraineeBtn').addEventListener('click', exitTraineeView);
+      document.body.classList.add('has-trainee-banner');
+    } else {
+      banner.style.display = 'none';
+      document.body.classList.remove('has-trainee-banner');
+    }
+  }
+
+  /* ====================== PRs & BENCHMARKS ====================== */
+  const PR_DEFS = {
+    weightlifting: ['Snatch','Clean & Jerk','Clean','Jerk','Power Snatch','Power Clean','Front Squat','Overhead Squat'],
+    powerlifting:  ['Back Squat','Bench Press','Deadlift'],
+    benchmark:     ['Fran','Grace','Isabel','Helen','Murph','Cindy','Diane','Annie','Fight Gone Bad','Karen','Max Pull-ups','Max HSPU','Max Double-unders']
+  };
+  const PR_CAT_LABEL = { weightlifting:'Weightlifting', powerlifting:'Powerlifting', benchmark:'CrossFit Benchmarks' };
+  const PR_DEFAULT_UNIT = { weightlifting:'kg', powerlifting:'kg', benchmark:'sec' };
+  const UNIT_OPTS = ['kg','lb','sec','reps','rounds'];
+
+  async function renderPrs(){
+    const box = document.getElementById('prsContainer');
+    box.innerHTML = `<div class="search-empty">Loading…</div>`;
+    const { data, error } = await sb.from('crossfit_prs').select('*').eq('user_id', activeUserId())
+      .order('recorded_at', { ascending:false, nullsFirst:false }).order('created_at', { ascending:false });
+    if (error){ box.innerHTML = `<div class="search-empty">Could not load PRs: ${esc(error.message)}</div>`; return; }
+    const latest = {}; const counts = {};
+    (data||[]).forEach(r => {
+      const k = r.category + '|' + r.name;
+      if (!latest[k]) latest[k] = r;
+      counts[k] = (counts[k]||0) + 1;
+    });
+    const who = viewingTrainee ? `${esc(viewingTrainee.display_name||'trainee')}'s ` : '';
+    let html = `<p class="muted-note">${who}personal records. Saving keeps a history; the most recent value is shown.</p>`;
+    for (const cat of ['weightlifting','powerlifting','benchmark']){
+      const names = [...PR_DEFS[cat]];
+      // include any custom names already saved for this category
+      (data||[]).filter(r => r.category===cat && !names.includes(r.name)).forEach(r => { if (!names.includes(r.name)) names.push(r.name); });
+      html += `<div class="group"><h4>${PR_CAT_LABEL[cat]}</h4><div class="pr-list">`;
+      names.forEach(name => {
+        const k = cat + '|' + name;
+        const cur = latest[k];
+        const unit = cur?.unit || PR_DEFAULT_UNIT[cat];
+        const val = cur?.value ?? '';
+        const hist = counts[k] ? `<span class="pr-hist">${counts[k]}×</span>` : '';
+        html += `<div class="pr-row" data-cat="${cat}" data-name="${esc(name)}">
+          <span class="pr-name">${esc(name)} ${hist}</span>
+          <input class="pr-val" type="number" step="0.5" value="${val}">
+          <select class="pr-unit">${UNIT_OPTS.map(u=>`<option value="${u}"${u===unit?' selected':''}>${u}</option>`).join('')}</select>
+          <button class="btn pr-save">Save</button>
+        </div>`;
+      });
+      html += `</div>
+        <div class="pr-add">
+          <input class="pr-add-name" type="text" placeholder="Add custom ${PR_CAT_LABEL[cat].toLowerCase()} lift/WOD">
+          <button class="btn pr-add-btn" data-cat="${cat}">Add</button>
+        </div></div>`;
+    }
+    box.innerHTML = html;
+    box.querySelectorAll('.pr-save').forEach(b => b.addEventListener('click', onPrSave));
+    box.querySelectorAll('.pr-add-btn').forEach(b => b.addEventListener('click', onPrAdd));
+  }
+  async function onPrSave(e){
+    const row = e.target.closest('.pr-row');
+    const cat = row.dataset.cat, name = row.dataset.name;
+    const value = row.querySelector('.pr-val').value;
+    const unit = row.querySelector('.pr-unit').value;
+    if (value === '' ) { return; }
+    const btn = e.target; btn.disabled = true; btn.textContent = '…';
+    const { error } = await sb.from('crossfit_prs').insert({
+      user_id: activeUserId(), category: cat, name, value: parseFloat(value), unit, recorded_at: todayKey()
+    });
+    if (error){ alert('Could not save PR: ' + error.message); btn.disabled=false; btn.textContent='Save'; return; }
+    btn.textContent = 'Saved ✓'; setTimeout(()=>{ btn.disabled=false; btn.textContent='Save'; }, 1000);
+    renderPrs();
+  }
+  function onPrAdd(e){
+    const cat = e.target.dataset.cat;
+    const input = e.target.closest('.pr-add').querySelector('.pr-add-name');
+    const name = input.value.trim(); if (!name) return;
+    if (!PR_DEFS[cat].includes(name)) PR_DEFS[cat].push(name);
+    input.value = '';
+    renderPrs();
+  }
+
+  /* ====================== COACHING ====================== */
+  const MAX_TRAINEES = 5;
+  function randomCode(){
+    const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const r = crypto.getRandomValues(new Uint8Array(8));
+    return Array.from(r, b => A[b % A.length]).join('');
+  }
+  async function renderCoachPanel(){
+    const box = document.getElementById('coachContainer');
+    box.innerHTML = `<div class="search-empty">Loading…</div>`;
+    if (!currentProfile?.is_coach){
+      box.innerHTML = `<div class="group">
+        <h4>Become a coach</h4>
+        <p class="muted-note">Open a coaching workspace to manage programs for multiple trainees and track their progress.</p>
+        <button class="btn btn-primary" id="becomeCoachBtn" style="width:100%">Enable coaching</button>
+      </div>`;
+      document.getElementById('becomeCoachBtn').addEventListener('click', async () => {
+        await saveProfile({ is_coach: true });
+        currentProfile.is_coach = true;
+        applyRoleVisibility();
+        renderCoachPanel();
+      });
+      return;
+    }
+    const { data: links, error } = await sb.from('crossfit_coach_links').select('*')
+      .eq('coach_user_id', currentUser.id).order('created_at', { ascending:false });
+    if (error){ box.innerHTML = `<div class="search-empty">${esc(error.message)}</div>`; return; }
+    const active = (links||[]).filter(l => l.status==='active' && l.trainee_user_id);
+    const invited = (links||[]).filter(l => l.status==='invited');
+    // resolve trainee names
+    let names = {};
+    if (active.length){
+      const ids = active.map(l => l.trainee_user_id);
+      const { data: profs } = await sb.from('profiles').select('user_id, display_name, email').in('user_id', ids);
+      (profs||[]).forEach(p => names[p.user_id] = p.display_name || p.email || 'Trainee');
+    }
+    const atLimit = active.length >= MAX_TRAINEES;
+    let html = `<div class="group">
+      <h4>Invite a trainee <span class="muted-note">(${active.length}/${MAX_TRAINEES})</span></h4>
+      ${atLimit ? `<p class="muted-note">You've reached the ${MAX_TRAINEES}-trainee limit. Unlink a trainee to invite another.</p>` : `
+      <div class="form-row"><label>Email (optional)<input type="email" id="inviteEmail" placeholder="trainee@email.com"></label></div>
+      <button class="btn btn-primary" id="genInviteBtn" style="width:100%">Generate invite code</button>`}
+      <div id="inviteResult"></div>
+    </div>`;
+    if (invited.length){
+      html += `<div class="group"><h4>Pending invites</h4>`;
+      invited.forEach(l => {
+        html += `<div class="coach-row">
+          <span><code>${esc(l.join_code)}</code>${l.invite_email?` — ${esc(l.invite_email)}`:''}</span>
+          <button class="btn coach-revoke" data-id="${l.id}">Cancel</button>
+        </div>`;
+      });
+      html += `</div>`;
+    }
+    html += `<div class="group"><h4>My trainees (${active.length})</h4>`;
+    if (!active.length) html += `<p class="muted-note">No trainees yet. Generate an invite code above.</p>`;
+    active.forEach(l => {
+      const nm = names[l.trainee_user_id] || 'Trainee';
+      const canEdit = l.trainee_can_edit !== false;
+      html += `<div class="coach-trainee">
+        <div class="coach-trainee-name">${esc(nm)} <span class="tag ${canEdit?'tag-coach':''}">${canEdit?'can edit':'view-only'}</span></div>
+        <div class="coach-trainee-actions">
+          <button class="btn coach-view" data-id="${l.trainee_user_id}" data-name="${esc(nm)}">View progress</button>
+          <button class="btn coach-programs" data-id="${l.trainee_user_id}" data-name="${esc(nm)}">Manage programs</button>
+          <button class="btn coach-edit-toggle" data-id="${l.id}" data-val="${canEdit?0:1}">${canEdit?'Lock editing':'Allow editing'}</button>
+          <button class="btn coach-revoke" data-id="${l.id}">Unlink</button>
+        </div>
+      </div>`;
+    });
+    html += `</div>`;
+    box.innerHTML = html;
+    document.getElementById('genInviteBtn')?.addEventListener('click', onGenerateInvite);
+    box.querySelectorAll('.coach-edit-toggle').forEach(b => b.addEventListener('click', async () => {
+      await sb.from('crossfit_coach_links').update({ trainee_can_edit: b.dataset.val==='1' }).eq('id', b.dataset.id);
+      renderCoachPanel();
+    }));
+    box.querySelectorAll('.coach-revoke').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('Remove this link / invite?')) return;
+      await sb.from('crossfit_coach_links').update({ status:'revoked' }).eq('id', b.dataset.id);
+      renderCoachPanel();
+    }));
+    box.querySelectorAll('.coach-view').forEach(b => b.addEventListener('click', () => viewUserData(b.dataset.id, b.dataset.name)));
+    box.querySelectorAll('.coach-programs').forEach(b => b.addEventListener('click', async () => {
+      await viewUserData(b.dataset.id, b.dataset.name);
+      openSidePanel();
+      document.querySelector('.side-nav button[data-stab="program"]').click();
+    }));
+  }
+  async function onGenerateInvite(){
+    const email = document.getElementById('inviteEmail').value.trim() || null;
+    const code = randomCode();
+    const { error } = await sb.from('crossfit_coach_links').insert({
+      coach_user_id: currentUser.id, invite_email: email, join_code: code, status:'invited'
+    });
+    if (error){ alert('Could not create invite: ' + error.message); return; }
+    const link = `${window.location.origin}${window.location.pathname}?join=${code}`;
+    document.getElementById('inviteResult').innerHTML =
+      `<div class="invite-out">Code: <code>${code}</code><br>Link: <a href="${link}">${esc(link)}</a></div>`;
+    document.getElementById('inviteEmail').value = '';
+    renderCoachPanel();
+  }
+
+  /* ====================== ADMIN ====================== */
+  async function renderAdminPanel(){
+    const box = document.getElementById('adminContainer');
+    if (!currentProfile?.is_admin){ box.innerHTML = `<div class="search-empty">Admins only.</div>`; return; }
+    box.innerHTML = `<div class="search-empty">Loading…</div>`;
+    const [{ data: profs, error: pe }, { data: links }] = await Promise.all([
+      sb.from('profiles').select('user_id, display_name, email, phone, affiliate_box, is_coach, is_admin, created_at').order('created_at', { ascending:true }),
+      sb.from('crossfit_coach_links').select('*').eq('status','active')
+    ]);
+    if (pe){ box.innerHTML = `<div class="search-empty">${esc(pe.message)}</div>`; return; }
+    const coaches = (profs||[]).filter(p => p.is_coach).length;
+    const traineeIds = new Set((links||[]).map(l => l.trainee_user_id));
+    let html = `<div class="group"><h4>Overview</h4>
+      <div class="ps-row"><span class="ps-label">Total users</span><span class="ps-value">${(profs||[]).length}</span></div>
+      <div class="ps-row"><span class="ps-label">Coaches</span><span class="ps-value">${coaches}</span></div>
+      <div class="ps-row"><span class="ps-label">Active coach links</span><span class="ps-value">${(links||[]).length}</span></div>
+    </div>`;
+    html += `<div class="group"><h4>All users</h4>`;
+    (profs||[]).forEach(p => {
+      const tags = [];
+      if (p.is_admin) tags.push('<span class="tag tag-admin">admin</span>');
+      if (p.is_coach) tags.push('<span class="tag tag-coach">coach</span>');
+      if (traineeIds.has(p.user_id)) tags.push('<span class="tag">trainee</span>');
+      html += `<div class="admin-user">
+        <div class="admin-user-head">
+          <div><strong>${esc(p.display_name||'—')}</strong> ${tags.join(' ')}<br><span class="muted-note">${esc(p.email||'')}${p.affiliate_box?' · '+esc(p.affiliate_box):''}</span></div>
+        </div>
+        <div class="admin-user-actions">
+          <button class="btn admin-view" data-id="${p.user_id}" data-name="${esc(p.display_name||p.email||'User')}">View data</button>
+          <button class="btn admin-coach" data-id="${p.user_id}" data-val="${p.is_coach?0:1}">${p.is_coach?'Revoke coach':'Make coach'}</button>
+          <button class="btn admin-admin" data-id="${p.user_id}" data-val="${p.is_admin?0:1}">${p.is_admin?'Revoke admin':'Make admin'}</button>
+        </div>
+      </div>`;
+    });
+    html += `</div>`;
+    box.innerHTML = html;
+    box.querySelectorAll('.admin-view').forEach(b => b.addEventListener('click', () => viewUserData(b.dataset.id, b.dataset.name)));
+    box.querySelectorAll('.admin-coach').forEach(b => b.addEventListener('click', async () => {
+      await sb.from('profiles').update({ is_coach: b.dataset.val==='1' }).eq('user_id', b.dataset.id);
+      renderAdminPanel();
+    }));
+    box.querySelectorAll('.admin-admin').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('Change admin rights for this user?')) return;
+      await sb.from('profiles').update({ is_admin: b.dataset.val==='1' }).eq('user_id', b.dataset.id);
+      renderAdminPanel();
+    }));
+  }
+
+  /* ====================== ONBOARDING ====================== */
+  function openOnboarding(){
+    const m = document.getElementById('onboardingModal');
+    const p = currentProfile || {};
+    const f = document.getElementById('onboardingForm').elements;
+    f.display_name.value = p.display_name || (currentUser.email||'').split('@')[0] || '';
+    f.phone.value = p.phone || '';
+    f.affiliate_box.value = p.affiliate_box || '';
+    f.instagram_handle.value = p.instagram_handle || '';
+    f.twitter_handle.value = p.twitter_handle || '';
+    m.classList.add('open'); m.setAttribute('aria-hidden','false');
+  }
+  function closeOnboarding(){
+    const m = document.getElementById('onboardingModal');
+    m.classList.remove('open'); m.setAttribute('aria-hidden','true');
+  }
+  document.getElementById('onboardingSave').addEventListener('click', async () => {
+    const f = document.getElementById('onboardingForm').elements;
+    const data = {
+      display_name: f.display_name.value.trim() || null,
+      phone: f.phone.value.trim() || null,
+      affiliate_box: f.affiliate_box.value.trim() || null,
+      instagram_handle: f.instagram_handle.value.trim() || null,
+      twitter_handle: f.twitter_handle.value.trim() || null,
+      onboarded_at: new Date().toISOString()
+    };
+    const btn = document.getElementById('onboardingSave');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      await saveProfile(data);
+      currentProfile = Object.assign({}, currentProfile, data);
+      closeOnboarding();
+      renderSidePanel();
+    } catch(e){ btn.disabled=false; btn.textContent='Save & continue'; }
+  });
+
+  /* ---- Settings: join a coach by code ---- */
+  document.getElementById('joinCoachBtn')?.addEventListener('click', async () => {
+    const code = document.getElementById('joinCoachInput').value.trim();
+    if (!code) return;
+    const r = await redeemCoachCode(code, false);
+    if (r){ document.getElementById('joinCoachInput').value=''; }
+  });
+
   new MutationObserver(buildCharts).observe(document.documentElement, { attributes:true, attributeFilter:['data-theme'] });
   const io = new IntersectionObserver((entries)=>{ entries.forEach(e => { if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } }); }, { threshold:.12 });
   document.querySelectorAll('.reveal').forEach(el => io.observe(el));
 
-  // GUEST MODE — auth requirement disabled. All visitors share a single dataset.
-  const GUEST_USER_ID = '715be7a6-712b-4a0b-8c22-67fc1fc377e4';
+  // Login required — capture any pending invite code from the URL, then boot.
+  capturePendingInviteFromUrl();
   (async () => {
-    let { data: { session } } = await sb.auth.getSession();
+    const { data: { session } } = await sb.auth.getSession();
     if (session && session.user){
       currentUser = session.user;
+      await afterLogin();
     } else {
-      // No session — use the shared guest identity (no login)
-      currentUser = { id: GUEST_USER_ID, email: 'guest@local' };
+      showAuthScreen();
     }
-    hideAuthScreen();
-    bootUser();
   })();
 </script>
 </body>
