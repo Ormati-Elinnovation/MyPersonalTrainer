@@ -22,3 +22,4 @@ The admin flag was set manually:
 ## Additional applied migrations
 - `crossfit_coach_trainee_limit` — DB trigger enforcing max 5 active trainees per coach.
 - `crossfit_trainee_edit_permission` — `trainee_can_edit` flag on coach links + triggers blocking a locked trainee from editing their coach-assigned program/blocks (execution always allowed).
+- `crossfit_redeem_adopts_existing_programs` — on link, trainee's existing programs become coach-managed.
