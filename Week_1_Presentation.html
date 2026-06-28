@@ -397,6 +397,10 @@
   .cd-add{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:9px;border:none;cursor:pointer;font-size:20px;font-weight:700;background:linear-gradient(135deg,var(--blue),var(--primary));color:var(--button-text);box-shadow:0 4px 14px var(--glow)}
   .cd-add:hover{transform:translateY(-1px)}
   .cd-empty{padding:40px;text-align:center;color:var(--ink-soft)}
+  .cd-exp{background:transparent;border:none;color:var(--ink-soft);cursor:pointer;font-size:11px;padding:4px 6px;border-radius:6px}
+  .cd-exp:hover{background:var(--panel-2);color:var(--ink)}
+  .cd-prog{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:6px 8px;color:var(--ink);font-size:12.5px;outline:none;max-width:220px}
+  tr.cd-detail td{background:var(--panel-2)}
   .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px}
   .kpi{border:1px solid var(--line);border-radius:14px;padding:14px 16px;background:var(--panel)}
   .kpi-num{font-family:'Space Grotesk';font-size:28px;font-weight:800;color:var(--ink);line-height:1.1}
@@ -4615,19 +4619,31 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const active  = (links||[]).filter(l => l.status==='active' && l.trainee_user_id);
     const invited = (links||[]).filter(l => l.status==='invited');
 
-    // trainee profiles + their programs
-    let profs = {}, progByUser = {};
+    // coach's library (for the program dropdown)
+    const { data: libData } = await sb.from('programs').select('id, name, start_date, created_at')
+      .eq('user_id', currentUser.id).order('created_at', { ascending:false });
+    const lib = libData || [];
+
+    // trainee profiles, their current program, and per-trainee performance
+    let profs = {}, progByUser = {}, perf = {};
     if (active.length){
       const ids = active.map(l => l.trainee_user_id);
-      const [{ data: pr }, { data: pgs }] = await Promise.all([
-        sb.from('profiles').select('user_id, display_name, email, phone, affiliate_box, avatar_url').in('user_id', ids),
-        sb.from('programs').select('user_id, name, start_date, is_default, created_at').in('user_id', ids)
+      const [{ data: pr }, { data: pgs }, { data: trk }, { data: blk }, { data: fin }] = await Promise.all([
+        sb.from('profiles').select('user_id, display_name, email, phone, avatar_url').in('user_id', ids),
+        sb.from('programs').select('user_id, name, start_date, is_default, created_at, template_id').in('user_id', ids),
+        sb.from('tracker').select('user_id, done, notes, updated_at').in('user_id', ids),
+        sb.from('blocks').select('user_id').in('user_id', ids),
+        sb.from('day_finished').select('user_id').in('user_id', ids)
       ]);
       (pr||[]).forEach(p => profs[p.user_id] = p);
       (pgs||[]).forEach(p => {
         const cur = progByUser[p.user_id];
         if (!cur || p.is_default || (!cur.is_default && p.created_at < cur.created_at)) progByUser[p.user_id] = p;
       });
+      ids.forEach(u => perf[u] = { done:0, total:0, finished:0, lastTs:null, notes:[] });
+      (blk||[]).forEach(b => { if (perf[b.user_id]) perf[b.user_id].total++; });
+      (trk||[]).forEach(t => { const pf = perf[t.user_id]; if (!pf) return; if (t.done) pf.done++; if (t.notes) pf.notes.push(t.notes); if (t.updated_at && (!pf.lastTs || t.updated_at > pf.lastTs)) pf.lastTs = t.updated_at; });
+      (fin||[]).forEach(f => { if (perf[f.user_id]) perf[f.user_id].finished++; });
     }
 
     const atLimit = active.length >= MAX_TRAINEES;
@@ -4645,37 +4661,53 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     }
 
     html += `<div class="cd-table-wrap"><table class="cd-table"><thead><tr>
-      <th>Trainee</th><th>Affiliate / Box</th><th>Program</th><th>Start date</th><th>Editing</th><th>New</th><th></th>
+      <th style="width:28px"></th><th>Trainee</th><th>Program</th><th>Start date</th><th>Editing</th><th>New</th><th></th>
     </tr></thead><tbody>`;
     if (!active.length){
       html += `<tr><td colspan="7"><div class="cd-empty">No trainees yet. Generate an invite code above and share it.</div></td></tr>`;
     }
     active.forEach(l => {
-      const p = profs[l.trainee_user_id] || {};
+      const uid = l.trainee_user_id;
+      const p = profs[uid] || {};
       const nm = p.display_name || p.email || 'Trainee';
-      const prog = progByUser[l.trainee_user_id];
+      const prog = progByUser[uid];
       const canEdit = l.trainee_can_edit !== false;
       const initial = (nm||'?').charAt(0).toUpperCase();
+      const matchTmpl = prog && lib.some(L => L.id === prog.template_id);
+      const progOpts = `<option value=""${matchTmpl?'':' selected'}>${prog?('Current: '+esc(prog.name)):'Assign a program…'}</option>` +
+        lib.map(L => `<option value="${esc(L.id)}"${matchTmpl && prog.template_id===L.id?' selected':''}>${esc(L.name)}</option>`).join('');
+      const pf = perf[uid] || { done:0, total:0, finished:0, lastTs:null, notes:[] };
+      const pct = pf.total ? Math.round(pf.done/pf.total*100) : 0;
       html += `<tr>
+        <td><button class="cd-exp" data-uid="${uid}" aria-label="Details">▶</button></td>
         <td><div class="cd-trainee"><div class="cd-av" data-av="${esc(p.avatar_url||'')}">${initial}</div>
           <div><div class="cd-tname">${esc(nm)}</div><div class="cd-tsub">${esc(p.email||'')}${p.phone?' · '+esc(p.phone):''}</div></div></div></td>
-        <td>${esc(p.affiliate_box||'—')}</td>
-        <td>${prog?esc(prog.name):'<span class="cd-tsub">No program</span>'}</td>
+        <td><select class="cd-prog" data-id="${uid}">${progOpts}</select></td>
         <td>${prog?.start_date?esc(prog.start_date):'—'}</td>
         <td><button class="btn cd-lock" data-id="${l.id}" data-val="${canEdit?0:1}">${canEdit?'Can edit':'View-only'}</button></td>
-        <td><button class="cd-add" title="New program for ${esc(nm)}" data-id="${l.trainee_user_id}" data-name="${esc(nm)}">+</button></td>
+        <td><button class="cd-add" title="New program for ${esc(nm)}" data-id="${uid}" data-name="${esc(nm)}">+</button></td>
         <td><div class="cd-actions">
-          <button class="btn cd-view" data-id="${l.trainee_user_id}" data-name="${esc(nm)}">View</button>
-          <button class="btn cd-assign" data-id="${l.trainee_user_id}" data-name="${esc(nm)}">Assign</button>
+          <button class="btn cd-view" data-id="${uid}" data-name="${esc(nm)}">View</button>
+          <button class="btn cd-assign" data-id="${uid}" data-name="${esc(nm)}">Assign</button>
           <button class="btn cd-unlink" data-id="${l.id}">Unlink</button>
         </div></td>
-      </tr>`;
+      </tr>
+      <tr class="cd-detail" id="cd-detail-${uid}" style="display:none"><td colspan="7">
+        <div style="padding:6px 4px">
+          <div style="display:flex;gap:28px;flex-wrap:wrap">
+            <div><div class="kpi-num" style="font-size:20px">${pf.done}/${pf.total}</div><div class="cd-tsub">Workouts completed</div></div>
+            <div style="min-width:120px"><div class="kpi-num" style="font-size:20px">${pct}%</div><div class="cd-bar" style="margin-top:4px"><span style="width:${pct}%"></span></div><div class="cd-tsub">Completion</div></div>
+            <div><div class="kpi-num" style="font-size:20px">${pf.finished}</div><div class="cd-tsub">Days finished (consistency)</div></div>
+            <div><div class="kpi-num" style="font-size:20px">${pf.lastTs?fmtDay(pf.lastTs):'—'}</div><div class="cd-tsub">Last activity</div></div>
+          </div>
+          ${pf.notes.length?`<div style="margin-top:12px"><div class="cd-tsub">Recent notes</div>${pf.notes.slice(-4).reverse().map(n=>`<div style="padding:3px 0">• ${esc(n)}</div>`).join('')}</div>`:'<div class="cd-tsub" style="margin-top:10px">No notes yet.</div>'}
+        </div>
+      </td></tr>`;
     });
     html += `</tbody></table></div>`;
 
     // ---- My programs (library) + how many trainees are on each ----
-    const [{ data: lib }, { data: copies }, { data: todayBlocks }] = await Promise.all([
-      sb.from('programs').select('id, name, start_date').eq('user_id', currentUser.id).order('created_at', { ascending:false }),
+    const [{ data: copies }, { data: todayBlocks }] = await Promise.all([
       sb.from('programs').select('template_id').eq('assigned_by_coach_id', currentUser.id),
       sb.from('blocks').select('name, cat').eq('user_id', currentUser.id).eq('date', todayKey()).order('position')
     ]);
@@ -4708,6 +4740,25 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       avatarSignedUrl(path).then(u => { if (u){ el.style.backgroundImage=`url("${u}")`; el.textContent=''; } });
     });
     body.querySelectorAll('.cd-leaderboard').forEach(b => b.addEventListener('click', () => openGenericDashboard(b.dataset.id, b.dataset.name)));
+    // expand/collapse trainee details
+    body.querySelectorAll('.cd-exp').forEach(b => b.addEventListener('click', () => {
+      const row = document.getElementById('cd-detail-' + b.dataset.uid);
+      if (!row) return;
+      const isOpen = row.style.display !== 'none';
+      row.style.display = isOpen ? 'none' : 'table-row';
+      b.textContent = isOpen ? '▶' : '▼';
+    }));
+    // program dropdown → assign chosen library program and make it the trainee's active one
+    body.querySelectorAll('.cd-prog').forEach(sel => sel.addEventListener('change', async () => {
+      const srcId = sel.value; if (!srcId) return;
+      sel.disabled = true;
+      try {
+        const newId = await assignProgramToTrainee(sel.dataset.id, srcId);
+        await sb.from('programs').update({ is_default:false }).eq('user_id', sel.dataset.id);
+        await sb.from('programs').update({ is_default:true }).eq('id', newId);
+        renderCoachDashboard();
+      } catch(e){ alert('Could not assign: ' + (e.message||e)); sel.disabled = false; }
+    }));
     document.getElementById('cdOpenMyBoard')?.addEventListener('click', async () => {
       targetUserId = null; viewingTrainee = null; selectedKey = todayKey();
       closeCoachDashboard(); await bootUser();
