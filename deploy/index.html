@@ -2931,13 +2931,12 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const el = document.createElement('div');
     el.className = 'block';
     el.dataset.id = b.id;
-    const generic = currentProgramIsGeneric();
     const originId = b.origin_block_id || b.id;
     el.innerHTML = `
       <div class="block-head">
         <div class="icon"><svg><use href="#${esc(b.icon)}"/></svg></div>
         <div style="display:flex;gap:6px">
-          ${generic ? `<button class="block-edit block-lb"><svg><use href="#i-group"/></svg>Leaderboard</button>` : ''}
+          <button class="block-edit block-lb"><svg><use href="#i-group"/></svg>Leaderboard</button>
           <button class="block-edit"><svg><use href="#i-edit"/></svg>Edit</button>
         </div>
       </div>
