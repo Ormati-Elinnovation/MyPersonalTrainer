@@ -890,6 +890,7 @@
       <button class="btn btn-secondary top-role-btn" id="adminTopBtn" style="display:none">
         <svg style="width:14px;height:14px;vertical-align:-2px"><use href="#i-bolt"/></svg> Admin
       </button>
+      <button class="icon-btn" id="helpBtn" aria-label="Tutorial" title="Tutorial" style="font-weight:800;font-size:16px">?</button>
       <button class="icon-btn" id="searchBtn" aria-label="Search history">
         <svg><use href="#i-search"/></svg>
       </button>
@@ -1231,6 +1232,23 @@
       <button class="modal-close" data-close-lb aria-label="Close">×</button>
     </div>
     <div class="modal-body" id="lbBody"></div>
+  </div>
+</div>
+
+<!-- Tutorial -->
+<div class="modal" id="tutorialModal" aria-hidden="true">
+  <div class="modal-backdrop" data-close-tut></div>
+  <div class="modal-card" role="dialog" aria-modal="true" style="max-width:440px">
+    <div class="modal-head">
+      <h3 id="tutTitle">Welcome</h3>
+      <button class="modal-close" data-close-tut aria-label="Close">×</button>
+    </div>
+    <div class="modal-body" id="tutBody" style="min-height:150px"></div>
+    <div class="modal-foot">
+      <div id="tutDots" style="display:flex;gap:6px;flex:1"></div>
+      <button class="btn btn-secondary" id="tutBack">Back</button>
+      <button class="btn btn-primary" id="tutNext">Next</button>
+    </div>
   </div>
 </div>
 
@@ -1580,6 +1598,47 @@
     if (h) h.textContent = `Welcome ${nm}`;
     if (s) s.textContent = q ? (q.t + (q.a ? ' — ' + q.a : '')) : '';
   }
+
+  /* ============ TUTORIAL ============ */
+  const TUT_SEEN_KEY = 'crossfit-tutorial-seen';
+  let tutSteps = [], tutIdx = 0;
+  function buildTutSteps(){
+    const steps = [
+      { t:'👋 Welcome', b:'This is your training hub — follow your program, track every set, and watch your progress. Here is a quick 30-second tour.' },
+      { t:'📅 Daily workouts', b:'Each day shows your workouts. Flip <b>Done</b>, add a <b>Result</b> (the field adapts to weight / time / reps), write notes, and attach a video.' },
+      { t:'🏆 Leaderboard', b:'Tap <b>Leaderboard</b> on any workout to compare your result with others doing the same program.' },
+      { t:'📚 Programs', b:'Open the menu (top-right 👤) → <b>Programs</b> to create your own, import a file, generate with AI, or join a coach with an invite code.' },
+      { t:'📊 PRs & Benchmarks', b:'Log your Weightlifting, Powerlifting and CrossFit benchmark PRs from the <b>PRs &amp; Benchmarks</b> tab.' },
+    ];
+    if (currentProfile?.is_coach) steps.push({ t:'👥 Trainees Dashboard', b:'As a coach, tap <b>Coach</b> (top bar) to add trainees, assign programs, set a shared start date, and track everyone\'s progress &amp; leaderboards.' });
+    if (currentProfile?.is_admin) steps.push({ t:'⚡ Admin', b:'Tap <b>Admin</b> (top bar) for an overview of all users, coaches, and activity.' });
+    steps.push({ t:'✅ You are all set!', b:'Reopen this tour anytime from the <b>?</b> button at the top. Let\'s train! 💪' });
+    return steps;
+  }
+  function renderTutStep(){
+    const s = tutSteps[tutIdx];
+    document.getElementById('tutTitle').textContent = s.t;
+    document.getElementById('tutBody').innerHTML = `<p style="font-size:14px;line-height:1.6;color:var(--ink)">${s.b}</p>`;
+    document.getElementById('tutDots').innerHTML = tutSteps.map((_,i)=>`<span style="width:8px;height:8px;border-radius:50%;display:inline-block;background:${i===tutIdx?'var(--blue)':'var(--line-2)'}"></span>`).join('');
+    document.getElementById('tutBack').style.visibility = tutIdx===0 ? 'hidden' : 'visible';
+    document.getElementById('tutNext').textContent = tutIdx === tutSteps.length-1 ? 'Done' : 'Next';
+  }
+  function openTutorial(){
+    tutSteps = buildTutSteps(); tutIdx = 0;
+    const m = document.getElementById('tutorialModal');
+    m.classList.add('open'); m.setAttribute('aria-hidden','false');
+    renderTutStep();
+  }
+  function closeTutorial(){
+    const m = document.getElementById('tutorialModal');
+    m.classList.remove('open'); m.setAttribute('aria-hidden','true');
+    try { localStorage.setItem(TUT_SEEN_KEY, '1'); } catch {}
+  }
+  function maybeAutoTutorial(){ try { if (!localStorage.getItem(TUT_SEEN_KEY)) openTutorial(); } catch {} }
+  document.getElementById('helpBtn').addEventListener('click', openTutorial);
+  document.querySelectorAll('[data-close-tut]').forEach(el => el.addEventListener('click', closeTutorial));
+  document.getElementById('tutBack').addEventListener('click', () => { if (tutIdx>0){ tutIdx--; renderTutStep(); } });
+  document.getElementById('tutNext').addEventListener('click', () => { if (tutIdx < tutSteps.length-1){ tutIdx++; renderTutStep(); } else closeTutorial(); });
 
   /* ============ DEFAULT PROGRAM ============ */
   const PROGRAM_START = '2026-05-17';
@@ -4572,6 +4631,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     await refreshSelfLock();
     await bootUser();
     if (currentProfile && !currentProfile.onboarded_at) openOnboarding();
+    else maybeAutoTutorial();
   }
 
   /* ---- viewing another user's data (coach / admin) ---- */
@@ -5543,6 +5603,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       currentProfile = Object.assign({}, currentProfile, data);
       closeOnboarding();
       renderSidePanel();
+      maybeAutoTutorial();
     } catch(e){ btn.disabled=false; btn.textContent='Save & continue'; }
   });
 
