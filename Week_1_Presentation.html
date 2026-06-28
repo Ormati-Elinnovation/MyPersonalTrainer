@@ -2914,6 +2914,19 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
   function currentProgramIsGeneric(){
     return !!programs.find(p => p.id === currentProgramId)?.is_generic;
   }
+  // Auto-detect how a block's result should be measured (so leaderboards compare apples to apples).
+  function inferScoreType(b){
+    if (b && b.score_type) return b.score_type;
+    const t = (((b&&b.name)||'') + ' ' + ((b&&b.body)||'')).toLowerCase();
+    const tm = b && b.timer && b.timer.m;
+    if (/\bfor time\b|\brft\b|rounds for time|\brun\b|\brow\b|\bsprint\b|chipper|metcon|\bmurph\b|\bfran\b|\bgrace\b|\bhelen\b|\bisabel\b|\bdiane\b|\bannie\b/.test(t)) return 'time';
+    if (tm === 'stopwatch') return 'time';
+    if (/\bamrap\b|as many|max reps|max effort|unbroken|rounds ?\+ ?reps|\bcindy\b|\bmax\b/.test(t)) return 'reps';
+    if (tm === 'countdown') return 'reps';
+    if (/@\s*\d|\d+\s*kg|\d+\s*lb|1rm|\b\d\s*rm\b|%|\bsnatch\b|clean|jerk|squat|deadlift|press|bench|thruster/.test(t)) return 'weight';
+    if (tm === 'emom' || tm === 'interval') return 'time';
+    return null;
+  }
   function buildBlockElement(b){
     const el = document.createElement('div');
     el.className = 'block';
@@ -2937,7 +2950,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const lb = el.querySelector('.block-lb');
     if (lb) lb.addEventListener('click', () => openBlockLeaderboard(originId, b.name));
     if (b.timer) initTimer(el.querySelector('.timer'));
-    injectTracker(el, b.id, b.score_type);
+    injectTracker(el, b.id, b);
     return el;
   }
 
@@ -3398,7 +3411,8 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
   /* ============ TRACKER ============ */
   const ICON_VIDEO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>';
 
-  function injectTracker(block, key, scoreType){
+  function injectTracker(block, key, b){
+    const scoreType = inferScoreType(b);   // explicit, or auto-detected from the workout
     const state = tkData[key] = Object.assign({ done:false, notes:'', results:[] }, tkData[key] || {});
     let addHtml;
     if (scoreType === 'weight'){
@@ -3476,7 +3490,15 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       });
     }
     renderList();
-    function addResult(v){ if (!v) return; state.results.push(v); saveTrackerForBlock(key, state); renderList(); }
+    function addResult(v){
+      if (!v) return;
+      state.results.push(v); saveTrackerForBlock(key, state); renderList();
+      // First result on an unlabeled block → persist the inferred type so leaderboards can rank it.
+      if (b && !b.score_type && scoreType){
+        b.score_type = scoreType; b.score_dir = scoreType === 'time' ? 'low' : 'high';
+        sb.from('blocks').update({ score_type: b.score_type, score_dir: b.score_dir }).eq('id', key).then(()=>{});
+      }
+    }
     if (scoreType === 'time'){
       const timeForm = tracker.querySelector('.tk-add.tk-time');
       const mm = timeForm.querySelector('.tk-mm'), ss = timeForm.querySelector('.tk-ss');
@@ -3639,7 +3661,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       modalForm.elements.icon.value = block.icon || 'i-flame';
       modalForm.elements.name.value = block.name || '';
       modalForm.elements.body.value = block.body || '';
-      modalForm.elements.scoreType.value = block.score_type || '';
+      modalForm.elements.scoreType.value = block.score_type || inferScoreType(block) || '';
       const t = block.timer;
       timerModeSel.value = t ? t.m : '';
       if (t){
