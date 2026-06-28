@@ -994,6 +994,12 @@
       </div>
       <div class="form-row"><label>Workout Name<input type="text" name="name" placeholder="e.g. Snatch — 5×2 @ 75-80%" required></label></div>
       <div class="form-row"><label>Description<textarea name="body" rows="4" placeholder="Sets, reps, weights, notes..."></textarea></label></div>
+      <div class="form-row"><label>Result type (for leaderboard)<select name="scoreType" id="scoreType">
+        <option value="">Free text (no scoring)</option>
+        <option value="weight">Weight — kg (higher is better)</option>
+        <option value="time">For time — mm:ss (lower is better)</option>
+        <option value="reps">Reps / rounds (higher is better)</option>
+      </select><span class="hint">Determines the result input &amp; how the leaderboard ranks it.</span></label></div>
       <div class="form-row"><label>Timer Type<select name="timerMode" id="timerMode">
         <option value="">No timer</option><option value="stopwatch">Stopwatch (count up)</option>
         <option value="countdown">Countdown</option><option value="emom">EMOM (every minute)</option>
@@ -2187,7 +2193,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const program = {};
     data.forEach(b => {
       if (!program[b.date]) program[b.date] = [];
-      program[b.date].push({ id: b.id, icon: b.icon, cat: b.cat, name: b.name, body: b.body || '', timer: b.timer || null, origin_block_id: b.origin_block_id || null });
+      program[b.date].push({ id: b.id, icon: b.icon, cat: b.cat, name: b.name, body: b.body || '', timer: b.timer || null, origin_block_id: b.origin_block_id || null, score_type: b.score_type || null, score_dir: b.score_dir || null });
     });
     return program;
   }
@@ -2199,11 +2205,14 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     return t;
   }
   async function upsertBlock(date, block, position){
-    const { error } = await sb.from('blocks').upsert({
+    const row = {
       id: block.id, user_id: activeUserId(), program_id: currentProgramId,
       date, icon: block.icon, cat: block.cat, name: block.name,
-      body: block.body || '', timer: block.timer || null, position, updated_at: new Date().toISOString()
-    });
+      body: block.body || '', timer: block.timer || null, position, updated_at: new Date().toISOString(),
+      score_type: block.score_type || null, score_dir: block.score_dir || null
+    };
+    if (block.origin_block_id) row.origin_block_id = block.origin_block_id;
+    const { error } = await sb.from('blocks').upsert(row);
     if (error){ alert('Could not save: ' + error.message); throw error; }
   }
   async function deleteBlockFromDB(id){
@@ -2928,7 +2937,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const lb = el.querySelector('.block-lb');
     if (lb) lb.addEventListener('click', () => openBlockLeaderboard(originId, b.name));
     if (b.timer) initTimer(el.querySelector('.timer'));
-    injectTracker(el, b.id);
+    injectTracker(el, b.id, b.score_type);
     return el;
   }
 
@@ -3389,8 +3398,25 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
   /* ============ TRACKER ============ */
   const ICON_VIDEO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>';
 
-  function injectTracker(block, key){
+  function injectTracker(block, key, scoreType){
     const state = tkData[key] = Object.assign({ done:false, notes:'', results:[] }, tkData[key] || {});
+    let addHtml;
+    if (scoreType === 'weight'){
+      addHtml = `<form class="tk-add"><input type="number" step="0.5" inputmode="decimal" placeholder="Weight (kg)" /><button type="submit" aria-label="Add">+</button></form>`;
+    } else if (scoreType === 'reps'){
+      addHtml = `<form class="tk-add"><input type="number" step="1" inputmode="numeric" placeholder="Reps / rounds" /><button type="submit" aria-label="Add">+</button></form>`;
+    } else if (scoreType === 'time'){
+      addHtml = `<form class="tk-add tk-time">
+          <input class="tk-mm" type="number" min="0" inputmode="numeric" placeholder="min" style="max-width:80px" />
+          <span style="align-self:center;font-weight:700">:</span>
+          <input class="tk-ss" type="number" min="0" max="59" inputmode="numeric" placeholder="sec" style="max-width:80px" />
+          <button type="submit" aria-label="Add">+</button>
+        </form>
+        <label class="tk-dnf" style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-soft);margin-top:6px"><input type="checkbox" class="tk-dnf-chk"> Capped — didn't finish (log reps instead)</label>
+        <form class="tk-add tk-dnf-form" style="display:none;margin-top:6px"><input class="tk-dnf-reps" type="number" inputmode="numeric" placeholder="reps completed" /><button type="submit" aria-label="Add">+</button></form>`;
+    } else {
+      addHtml = `<form class="tk-add"><input type="text" placeholder="Result (e.g. 65kg × 2, 7 rounds + 12, 12:34)" /><button type="submit" aria-label="Add">+</button></form>`;
+    }
     const html = `
       <div class="tracker">
         <div class="tk-row">
@@ -3403,7 +3429,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
         <textarea class="tk-notes" placeholder="Workout notes..." rows="2">${esc(state.notes || '')}</textarea>
         <div class="tk-results">
           <div class="tk-list"></div>
-          <form class="tk-add"><input type="text" placeholder="Result (e.g. 65kg × 2, 7 rounds + 12, 12:34)" /><button type="submit" aria-label="Add">+</button></form>
+          ${addHtml}
         </div>
         <div class="tk-videos">
           <div class="tk-video-list"></div>
@@ -3419,8 +3445,6 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const label   = tracker.querySelector('.tk-label');
     const notes   = tracker.querySelector('.tk-notes');
     const list    = tracker.querySelector('.tk-list');
-    const form    = tracker.querySelector('.tk-add');
-    const input   = form.querySelector('input');
     const videoList = tracker.querySelector('.tk-video-list');
     const fileInput = tracker.querySelector('.tk-file-input');
     const btnVideo  = tracker.querySelector('.tk-btn-video');
@@ -3452,12 +3476,32 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       });
     }
     renderList();
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const v = input.value.trim();
-      if (!v) return;
-      state.results.push(v); input.value = ''; saveTrackerForBlock(key, state); renderList();
-    });
+    function addResult(v){ if (!v) return; state.results.push(v); saveTrackerForBlock(key, state); renderList(); }
+    if (scoreType === 'time'){
+      const timeForm = tracker.querySelector('.tk-add.tk-time');
+      const mm = timeForm.querySelector('.tk-mm'), ss = timeForm.querySelector('.tk-ss');
+      timeForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const m = parseInt(mm.value,10)||0, s = Math.min(parseInt(ss.value,10)||0, 59);
+        if (!m && !s) return;
+        addResult(`${m}:${String(s).padStart(2,'0')}`); mm.value=''; ss.value='';
+      });
+      const dnfChk = tracker.querySelector('.tk-dnf-chk');
+      const dnfForm = tracker.querySelector('.tk-dnf-form');
+      const dnfReps = dnfForm.querySelector('.tk-dnf-reps');
+      dnfChk.addEventListener('change', () => { dnfForm.style.display = dnfChk.checked ? 'flex' : 'none'; });
+      dnfForm.addEventListener('submit', (e) => { e.preventDefault(); const r = parseInt(dnfReps.value,10); if (!r) return; addResult(`${r} reps`); dnfReps.value=''; });
+    } else {
+      const form = tracker.querySelector('.tk-add');
+      const input = form.querySelector('input');
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        let v = input.value.trim(); if (!v) return;
+        if (scoreType === 'weight'){ const n = parseFloat(v); if (isNaN(n)) return; v = `${n} kg`; }
+        else if (scoreType === 'reps'){ const n = parseInt(v,10); if (isNaN(n)) return; v = `${n} reps`; }
+        addResult(v); input.value = '';
+      });
+    }
 
     async function renderVideos(){
       let items = [];
@@ -3595,6 +3639,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       modalForm.elements.icon.value = block.icon || 'i-flame';
       modalForm.elements.name.value = block.name || '';
       modalForm.elements.body.value = block.body || '';
+      modalForm.elements.scoreType.value = block.score_type || '';
       const t = block.timer;
       timerModeSel.value = t ? t.m : '';
       if (t){
@@ -3621,7 +3666,11 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const name = f.name.value.trim();
     const cat  = f.cat.value.trim();
     if (!name || !cat){ alert('Category and Name are required.'); return; }
-    const data = { icon: f.icon.value, cat, name, body: f.body.value.trim(), timer: null };
+    const scoreType = f.scoreType.value || null;
+    const scoreDir = scoreType === 'time' ? 'low' : (scoreType ? 'high' : null);
+    const existing = modalEditingId ? (PROGRAM[selectedKey]||[]).find(b => b.id === modalEditingId) : null;
+    const data = { icon: f.icon.value, cat, name, body: f.body.value.trim(), timer: null,
+      score_type: scoreType, score_dir: scoreDir, origin_block_id: existing?.origin_block_id || null };
     const mode = timerModeSel.value;
     if (mode === 'stopwatch') data.timer = { m:'stopwatch', lbl:'Stopwatch' };
     else if (mode === 'countdown'){
@@ -3645,6 +3694,8 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       if (modalEditingId){
         const idx = PROGRAM[selectedKey].findIndex(b => b.id === modalEditingId);
         if (idx >= 0){ PROGRAM[selectedKey][idx] = Object.assign({ id: modalEditingId }, data); await upsertBlock(selectedKey, PROGRAM[selectedKey][idx], idx); }
+        // Propagate the result type to any trainee copies of this (master) block.
+        try { await sb.from('blocks').update({ score_type: scoreType, score_dir: scoreDir }).eq('origin_block_id', modalEditingId); } catch {}
       } else {
         const newBlock = Object.assign({ id: uid() }, data);
         const pos = PROGRAM[selectedKey].length;
@@ -5046,7 +5097,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
         date: (shiftDays && b.date) ? addDays(b.date, shiftDays) : b.date,
         icon: b.icon, cat: b.cat, name: b.name, body: b.body || '',
         timer: b.timer || null, position: b.position || 0,
-        origin_block_id: b.origin_block_id || b.id, score_dir: b.score_dir || null
+        origin_block_id: b.origin_block_id || b.id, score_dir: b.score_dir || null, score_type: b.score_type || null
       }));
       const { error: ie } = await sb.from('blocks').insert(rows);
       if (ie) throw ie;
@@ -5195,6 +5246,40 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     }));
   }
 
+  /* Rank leaderboard entries by result type.
+     time: finishers (mm:ss) ranked fastest-first, then DNF (reps) by most reps. */
+  function rankLeaderboard(rawEntries, score_type, score_dir){
+    const mapped = (rawEntries||[]).map(e => {
+      const results = Array.isArray(e.results) ? e.results : [];
+      const raw = results.join(', ');
+      let tier = 0, val = null;
+      if (score_type === 'time'){
+        const tm = raw.match(/(\d+):(\d{2})/);
+        if (tm){ tier = 0; val = (+tm[1])*60 + (+tm[2]); }
+        else { const rm = raw.match(/\d+(\.\d+)?/); tier = 1; val = rm ? parseFloat(rm[0]) : null; }
+      } else {
+        const dir = score_dir || (score_type ? 'high' : null);
+        const scores = results.map(parseScore).filter(v => v != null);
+        if (scores.length) val = (dir === 'low') ? Math.min(...scores) : Math.max(...scores);
+      }
+      return { name: e.name, raw, is_me: e.is_me, tier, val };
+    }).filter(e => e.raw);
+    const ranked = !!(score_type || score_dir);
+    if (ranked){
+      mapped.sort((a,b) => {
+        if (score_type === 'time'){
+          if (a.tier !== b.tier) return a.tier - b.tier;
+          if (a.val == null) return 1; if (b.val == null) return -1;
+          return a.tier === 0 ? a.val - b.val : b.val - a.val;
+        }
+        const dir = score_dir || 'high';
+        if (a.val == null) return 1; if (b.val == null) return -1;
+        return dir === 'low' ? a.val - b.val : b.val - a.val;
+      });
+    }
+    return { ranked, entries: mapped };
+  }
+
   /* ---- per-block leaderboard popup (used from each generic-program block) ---- */
   async function openBlockLeaderboard(originId, name){
     document.getElementById('lbTitle').textContent = name || 'Leaderboard';
@@ -5204,20 +5289,10 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     m.classList.add('open'); m.setAttribute('aria-hidden','false');
     const { data, error } = await sb.rpc('crossfit_block_leaderboard', { p_origin: originId });
     if (error){ body.innerHTML = `<div class="search-empty">${esc(error.message)}</div>`; return; }
-    const sdir = data?.score_dir;
-    let entries = (data?.entries || []).map(e => {
-      const results = Array.isArray(e.results) ? e.results : [];
-      const scores = results.map(parseScore).filter(v => v != null);
-      let best = null;
-      if (scores.length) best = sdir === 'low' ? Math.min(...scores) : Math.max(...scores);
-      return { name: e.name, raw: results.join(', '), score: best, is_me: e.is_me };
-    }).filter(e => e.raw);
-    if (sdir){
-      entries.sort((a,b)=>{ if(a.score==null)return 1; if(b.score==null)return -1; return sdir==='low'?a.score-b.score:b.score-a.score; });
-    }
+    const { ranked, entries } = rankLeaderboard(data?.entries, data?.score_type, data?.score_dir);
     if (!entries.length){ body.innerHTML = `<p class="muted-note">No results logged yet. Be the first — log your result on this workout!</p>`; return; }
     body.innerHTML = `<div class="cd-table-wrap"><table class="cd-table"><thead><tr><th>#</th><th>Athlete</th><th>Result</th></tr></thead><tbody>` +
-      entries.map((e,i)=>`<tr${e.is_me?' style="background:rgba(167,200,234,.14)"':''}><td>${sdir?(i+1):'•'}</td><td>${esc(e.name)}${e.is_me?' <span class="cd-tsub">(you)</span>':''}</td><td>${esc(e.raw)}</td></tr>`).join('') +
+      entries.map((e,i)=>`<tr${e.is_me?' style="background:rgba(167,200,234,.14)"':''}><td>${ranked?(i+1):'•'}</td><td>${esc(e.name)}${e.is_me?' <span class="cd-tsub">(you)</span>':''}</td><td>${esc(e.raw)}</td></tr>`).join('') +
       `</tbody></table></div>`;
   }
   function closeLbModal(){ const m=document.getElementById('lbModal'); m.classList.remove('open'); m.setAttribute('aria-hidden','true'); }
