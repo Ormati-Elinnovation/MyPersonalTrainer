@@ -4304,20 +4304,18 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     try {
       const self = isViewingSelf();
       programs = await loadPrograms();
-      // Only auto-create a starter program / seed blocks for the logged-in user —
-      // never inject a template into a trainee a coach is merely viewing.
-      if (self) await ensureDefaultProgram();
+      // New users start with NO program — no auto-created template/seed. A program
+      // appears only when they create one or a coach assigns one.
       if (self){
         let savedId;
         try { savedId = localStorage.getItem(PROGRAM_KEY); } catch {}
         const exists = savedId && programs.some(p => p.id === savedId);
-        currentProgramId = exists ? savedId : (programs.find(p => p.is_default)?.id || programs[0]?.id);
+        currentProgramId = exists ? savedId : (programs.find(p => p.is_default)?.id || programs[0]?.id || null);
         try { localStorage.setItem(PROGRAM_KEY, currentProgramId || ''); } catch {}
       } else {
         currentProgramId = programs.find(p => p.is_default)?.id || programs[0]?.id || null;
       }
 
-      if (self) await ensureUserSeed();
       // These four reads are independent — run them in parallel (big speedup on mobile).
       const [vp, prog, tk, fin] = await Promise.all([
         loadProfile(), loadProgramFromDB(), loadTrackerFromDB(), loadFinishedDates()
@@ -4341,6 +4339,19 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       finishedDates = fin;
       renderCalendar(); renderDayDetail(); buildCharts(); updateArchiveBadge(); renderProgramsList();
       renderTraineeBanner();
+      if (!programs.length){
+        const detail = document.getElementById('dayDetail');
+        if (detail) detail.innerHTML = `<div style="padding:50px 22px;text-align:center;color:var(--ink-soft)">
+          <div style="font-size:42px;margin-bottom:10px">🏋️</div>
+          <strong style="color:var(--ink);font-size:16px">No program yet</strong>
+          <div style="margin-top:8px;font-size:13.5px;max-width:340px;margin-inline:auto">
+            ${self ? 'Create your own program, or wait for your coach to assign one to you.' : 'This trainee has no program yet.'}
+          </div>
+          ${self ? `<button class="btn btn-primary" id="emptyCreateBtn" style="margin-top:16px">Create a program</button>` : ''}
+        </div>`;
+        const ec = document.getElementById('emptyCreateBtn');
+        if (ec) ec.addEventListener('click', () => { openSidePanel(); document.querySelector('.side-nav button[data-stab="program"]').click(); openProgramModal(); });
+      }
       if (document.querySelector('.side-section[data-section="prs"].active')) renderPrs();
       if (!realtimeSet){ setupRealtime(); realtimeSet = true; }
     } catch(e){
