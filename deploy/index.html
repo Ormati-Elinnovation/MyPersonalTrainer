@@ -879,8 +879,8 @@
     <div class="brand">
       <div class="logo">4W</div>
       <div>
-        <h1>4-Week CrossFit Program</h1>
-        <small>Competition Prep · Personal</small>
+        <h1 id="welcomeName">4-Week CrossFit Program</h1>
+        <small id="welcomeQuote">Competition Prep · Personal</small>
       </div>
     </div>
     <div class="topbar-right">
@@ -1570,6 +1570,15 @@
   }
   function quoteForDate(k){
     return QUOTES[dayOfYear(k) % QUOTES.length];
+  }
+  // Top header: "Welcome <name>" + a different motivational quote each day.
+  function setHeaderGreeting(){
+    const nm = currentProfile?.display_name || (currentUser?.email||'').split('@')[0] || 'Athlete';
+    const q = quoteForDate(todayKey());
+    const h = document.getElementById('welcomeName');
+    const s = document.getElementById('welcomeQuote');
+    if (h) h.textContent = `Welcome ${nm}`;
+    if (s) s.textContent = q ? (q.t + (q.a ? ' — ' + q.a : '')) : '';
   }
 
   /* ============ DEFAULT PROGRAM ============ */
@@ -2566,14 +2575,6 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       if (ended) finishBtn = `<button class="btn-day-action" id="finishDayBtn" title="Reopen day"><svg><use href="#i-reload"/></svg>Reopen Day</button>`;
       else finishBtn = `<button class="btn-day-action finish" id="finishDayBtn"><svg><use href="#i-check"/></svg>Finish Day</button>`;
     }
-    const q = quoteForDate(selectedKey);
-    const quoteBannerHtml = `
-      <div class="quote-banner">
-        <div class="qb-text">
-          <div class="qb-quote">${esc(q.t)}</div>
-          ${q.a ? `<div class="qb-author">— ${esc(q.a)}</div>` : ''}
-        </div>
-      </div>`;
     detail.innerHTML = `
       <div class="day-photo">
         <img src="${photo.url}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'">
@@ -2591,7 +2592,6 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
           </div>
         </div>
       </div>
-      ${quoteBannerHtml}
       <div class="day-body">
         ${blocks.length ? `<div class="blocks" id="blocksContainer"></div>` : `
           <div class="empty-state">
@@ -3892,6 +3892,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     fillProfileForm();
     updateFaceIdToggleLabel();
     applyRoleVisibility();
+    setHeaderGreeting();
   }
 
   function fillProfileForm(){
@@ -4497,6 +4498,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       finishedDates = fin;
       renderCalendar(); renderDayDetail(); buildCharts(); updateArchiveBadge(); renderProgramsList();
       renderTraineeBanner();
+      setHeaderGreeting();
       if (!programs.length){ renderGetStarted(self); }
       if (document.querySelector('.side-section[data-section="prs"].active')) renderPrs();
       if (!realtimeSet){ setupRealtime(); realtimeSet = true; }
