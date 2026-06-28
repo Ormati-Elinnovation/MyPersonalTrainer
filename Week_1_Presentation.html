@@ -867,6 +867,12 @@
       </div>
     </div>
     <div class="topbar-right">
+      <button class="btn btn-secondary top-role-btn" id="coachTopBtn" style="display:none">
+        <svg style="width:14px;height:14px;vertical-align:-2px"><use href="#i-group"/></svg> Coach
+      </button>
+      <button class="btn btn-secondary top-role-btn" id="adminTopBtn" style="display:none">
+        <svg style="width:14px;height:14px;vertical-align:-2px"><use href="#i-bolt"/></svg> Admin
+      </button>
       <button class="icon-btn" id="searchBtn" aria-label="Search history">
         <svg><use href="#i-search"/></svg>
       </button>
@@ -1198,6 +1204,15 @@
     <button class="modal-close" id="adminDashClose" aria-label="Close">×</button>
   </div>
   <div class="cd-body" id="adminDashBody"></div>
+</div>
+
+<!-- Generic program dashboard (full page) -->
+<div class="coach-dash" id="genericDashboard" aria-hidden="true">
+  <div class="cd-head">
+    <h2><svg style="width:20px;height:20px;vertical-align:-3px"><use href="#i-barbell"/></svg> <span id="genericTitle">Program</span></h2>
+    <button class="modal-close" id="genericDashClose" aria-label="Close">×</button>
+  </div>
+  <div class="cd-body" id="genericDashBody"></div>
 </div>
 
 <!-- 5-second countdown overlay -->
@@ -4292,7 +4307,13 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const adminBtn = document.getElementById('adminTabBtn');
     if (coachBtn) coachBtn.style.display = '';                                  // self-serve: anyone can open & enable
     if (adminBtn) adminBtn.style.display = currentProfile?.is_admin ? '' : 'none';
+    const coachTop = document.getElementById('coachTopBtn');
+    const adminTop = document.getElementById('adminTopBtn');
+    if (coachTop) coachTop.style.display = currentProfile?.is_coach ? 'inline-flex' : 'none';
+    if (adminTop) adminTop.style.display = currentProfile?.is_admin ? 'inline-flex' : 'none';
   }
+  document.getElementById('coachTopBtn').addEventListener('click', openCoachDashboard);
+  document.getElementById('adminTopBtn').addEventListener('click', openAdminDashboard);
 
   /* ---- post-login orchestration ---- */
   let pendingInviteCode = null;
@@ -4651,12 +4672,45 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       </tr>`;
     });
     html += `</tbody></table></div>`;
+
+    // ---- My programs (library) + how many trainees are on each ----
+    const [{ data: lib }, { data: copies }, { data: todayBlocks }] = await Promise.all([
+      sb.from('programs').select('id, name, start_date').eq('user_id', currentUser.id).order('created_at', { ascending:false }),
+      sb.from('programs').select('template_id').eq('assigned_by_coach_id', currentUser.id),
+      sb.from('blocks').select('name, cat').eq('user_id', currentUser.id).eq('date', todayKey()).order('position')
+    ]);
+    const tmplCount = {};
+    (copies||[]).forEach(c => { if (c.template_id) tmplCount[c.template_id] = (tmplCount[c.template_id]||0)+1; });
+    html += `<div class="cd-sec-title">My programs (library)</div><div class="cd-table-wrap"><table class="cd-table"><thead><tr>
+      <th>Program</th><th>Trainees doing it</th><th></th></tr></thead><tbody>`;
+    if (!lib || !lib.length) html += `<tr><td colspan="3"><div class="cd-empty">No programs yet — click "+ New program (library)".</div></td></tr>`;
+    (lib||[]).forEach(p => {
+      const n = tmplCount[p.id] || 0;
+      html += `<tr><td><strong>${esc(p.name)}</strong></td><td>${n}</td>
+        <td>${n>0?`<button class="btn cd-leaderboard" data-id="${esc(p.id)}" data-name="${esc(p.name)}">Dashboard &amp; leaderboard</button>`:'<span class="cd-tsub">not assigned</span>'}</td></tr>`;
+    });
+    html += `</tbody></table></div>`;
+
+    // ---- My training today ----
+    html += `<div class="cd-sec-title">My training — today (${todayKey()})</div><div class="cd-table-wrap" style="padding:14px">`;
+    if (!todayBlocks || !todayBlocks.length){
+      html += `<div class="cd-tsub">No workout scheduled for today in your own plan.</div>`;
+    } else {
+      html += todayBlocks.map(b => `<div style="padding:3px 0">• <strong>${esc(b.name)}</strong> <span class="cd-tsub">${esc(b.cat||'')}</span></div>`).join('');
+    }
+    html += `<button class="btn btn-primary" id="cdOpenMyBoard" style="margin-top:12px">Open my full program</button></div>`;
+
     body.innerHTML = html;
 
     // avatars
     body.querySelectorAll('.cd-av[data-av]').forEach(el => {
       const path = el.dataset.av; if (!path) return;
       avatarSignedUrl(path).then(u => { if (u){ el.style.backgroundImage=`url("${u}")`; el.textContent=''; } });
+    });
+    body.querySelectorAll('.cd-leaderboard').forEach(b => b.addEventListener('click', () => openGenericDashboard(b.dataset.id, b.dataset.name)));
+    document.getElementById('cdOpenMyBoard')?.addEventListener('click', async () => {
+      targetUserId = null; viewingTrainee = null; selectedKey = todayKey();
+      closeCoachDashboard(); await bootUser();
     });
     // add by email (direct link)
     document.getElementById('cdAddByEmail')?.addEventListener('click', async () => {
@@ -4821,6 +4875,106 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     m.classList.remove('open'); m.setAttribute('aria-hidden','true');
   }
   document.querySelectorAll('[data-close-assign]').forEach(el => el.addEventListener('click', closeAssignModal));
+
+  /* ====================== GENERIC PROGRAM DASHBOARD + LEADERBOARD ====================== */
+  function openGenericDashboard(templateId, name){
+    closeCoachDashboard();
+    document.getElementById('genericTitle').textContent = name || 'Program';
+    const el = document.getElementById('genericDashboard');
+    el.classList.add('open'); el.setAttribute('aria-hidden','false');
+    renderGenericDashboard(templateId, name);
+  }
+  function closeGenericDashboard(){
+    const el = document.getElementById('genericDashboard');
+    el.classList.remove('open'); el.setAttribute('aria-hidden','true');
+  }
+  document.getElementById('genericDashClose').addEventListener('click', closeGenericDashboard);
+
+  function parseScore(str){
+    if (str == null) return null;
+    const s = String(str);
+    const tm = s.match(/(\d+):(\d{2})/);          // mm:ss -> seconds
+    if (tm) return (+tm[1])*60 + (+tm[2]);
+    const nm = s.match(/-?\d+(?:\.\d+)?/);          // first plain number
+    return nm ? parseFloat(nm[0]) : null;
+  }
+
+  async function renderGenericDashboard(templateId, name){
+    const body = document.getElementById('genericDashBody');
+    body.innerHTML = `<div class="cd-empty">Loading…</div>`;
+
+    const [{ data: masterBlocks }, { data: copyPrograms }] = await Promise.all([
+      sb.from('blocks').select('id, date, cat, name, position, score_dir').eq('program_id', templateId).order('date').order('position'),
+      sb.from('programs').select('id, user_id').eq('template_id', templateId)
+    ]);
+    const traineeIds = [...new Set((copyPrograms||[]).map(p => p.user_id))];
+    let names = {};
+    if (traineeIds.length){
+      const { data: profs } = await sb.from('profiles').select('user_id, display_name, email').in('user_id', traineeIds);
+      (profs||[]).forEach(p => names[p.user_id] = p.display_name || p.email || 'Trainee');
+    }
+    const masterIds = (masterBlocks||[]).map(b => b.id);
+    let copyBlocks = [];
+    if (masterIds.length){
+      const { data } = await sb.from('blocks').select('id, user_id, origin_block_id').in('origin_block_id', masterIds);
+      copyBlocks = data || [];
+    }
+    const copyBlockIds = copyBlocks.map(b => b.id);
+    let tracker = {};
+    if (copyBlockIds.length){
+      const { data } = await sb.from('tracker').select('block_id, results, done').in('block_id', copyBlockIds);
+      (data||[]).forEach(t => tracker[t.block_id] = t);
+    }
+    const byOrigin = {};
+    copyBlocks.forEach(cb => { (byOrigin[cb.origin_block_id] = byOrigin[cb.origin_block_id] || []).push(cb); });
+
+    // ---- trainees + completion ----
+    const doneByUser = {}, totalByUser = {};
+    copyBlocks.forEach(cb => { totalByUser[cb.user_id] = (totalByUser[cb.user_id]||0)+1; if (tracker[cb.id]?.done) doneByUser[cb.user_id] = (doneByUser[cb.user_id]||0)+1; });
+    let html = `<p class="muted-note">${traineeIds.length} trainee(s) on this program.</p>`;
+    html += `<div class="cd-sec-title">Trainees</div><div class="cd-table-wrap"><table class="cd-table"><thead><tr><th>Trainee</th><th>Completed</th></tr></thead><tbody>`;
+    if (!traineeIds.length) html += `<tr><td colspan="2"><div class="cd-empty">No trainees on this program yet.</div></td></tr>`;
+    traineeIds.forEach(uid => {
+      const d = doneByUser[uid]||0, t = totalByUser[uid]||0, pct = t ? Math.round(d/t*100) : 0;
+      html += `<tr><td>${esc(names[uid]||'Trainee')}</td><td><div style="display:flex;align-items:center;gap:8px"><span>${d}/${t}</span><div class="cd-bar"><span style="width:${pct}%"></span></div></div></td></tr>`;
+    });
+    html += `</tbody></table></div>`;
+
+    // ---- per-block leaderboards ----
+    html += `<div class="cd-sec-title">Leaderboards by block</div>`;
+    (masterBlocks||[]).forEach(mb => {
+      const entries = (byOrigin[mb.id]||[]).map(cb => {
+        const results = tracker[cb.id]?.results || [];
+        const scores = results.map(parseScore).filter(v => v != null);
+        let best = null;
+        if (scores.length) best = mb.score_dir === 'low' ? Math.min(...scores) : Math.max(...scores);
+        return { user: cb.user_id, raw: results.join(', '), score: best };
+      }).filter(e => e.raw);
+      if (mb.score_dir){
+        entries.sort((a,b) => { if (a.score==null) return 1; if (b.score==null) return -1; return mb.score_dir==='low' ? a.score-b.score : b.score-a.score; });
+      }
+      html += `<div class="group"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+        <h4 style="margin:0">${esc(mb.name)} <span class="cd-tsub">${esc(mb.cat||'')} · ${esc(mb.date)}</span></h4>
+        <select class="lb-dir" data-id="${mb.id}">
+          <option value=""${!mb.score_dir?' selected':''}>No ranking</option>
+          <option value="high"${mb.score_dir==='high'?' selected':''}>Higher = better</option>
+          <option value="low"${mb.score_dir==='low'?' selected':''}>Lower (time) = better</option>
+        </select></div>`;
+      if (!entries.length) html += `<p class="muted-note">No results logged yet.</p>`;
+      else {
+        html += `<div class="cd-table-wrap"><table class="cd-table"><thead><tr><th>#</th><th>Trainee</th><th>Result</th></tr></thead><tbody>`;
+        entries.forEach((e,i) => { html += `<tr><td>${mb.score_dir?(i+1):'•'}</td><td>${esc(names[e.user]||'Trainee')}</td><td>${esc(e.raw)}</td></tr>`; });
+        html += `</tbody></table></div>`;
+      }
+      html += `</div>`;
+    });
+    body.innerHTML = html;
+
+    body.querySelectorAll('.lb-dir').forEach(sel => sel.addEventListener('change', async () => {
+      await sb.from('blocks').update({ score_dir: sel.value || null }).eq('id', sel.dataset.id);
+      renderGenericDashboard(templateId, name);
+    }));
+  }
 
   /* ====================== ADMIN DASHBOARD (full page) ====================== */
   function openAdminDashboard(){
