@@ -3,13 +3,12 @@
 Server-side AI that turns an uploaded workout file / goals into a structured
 program (JSON day array). JWT-protected (authenticated users only).
 
-**Provider: Google Gemini** (cheaper than Claude).
+**Provider: Anthropic Claude.**
 
-## Secrets (set in Supabase dashboard, no redeploy needed)
-- `GEMINI_API_KEY` (required) — from https://aistudio.google.com/apikey
-- `GEMINI_MODEL` (optional) — defaults to `gemini-2.0-flash`
+## Secrets (Supabase dashboard → Edge Functions → Secrets; no redeploy needed)
+- `ANTHROPIC_API_KEY` (required) — from https://console.anthropic.com → API Keys
+- `ANTHROPIC_MODEL` (optional) — defaults to `claude-sonnet-4-6`
 
 Dashboard: https://supabase.com/dashboard/project/trpvmydhkdjybpqcciov/settings/functions
-→ Edge Functions → Secrets.
 
-Deployed via Supabase MCP `deploy_edge_function` (the live source is index.ts here).
+(History: briefly used Gemini; reverted to Claude. Remove unused GEMINI_API_KEY / GEMINI_MODEL secrets.)
