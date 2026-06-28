@@ -4751,7 +4751,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const invited = (links||[]).filter(l => l.status==='invited');
 
     // coach's library (for the program dropdown)
-    const { data: libData } = await sb.from('programs').select('id, name, start_date, created_at')
+    const { data: libData } = await sb.from('programs').select('id, name, start_date, created_at, is_generic')
       .eq('user_id', currentUser.id).is('deleted_at', null).order('created_at', { ascending:false });
     const lib = libData || [];
 
@@ -4846,11 +4846,12 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const tmplCount = {};
     (copies||[]).forEach(c => { if (c.template_id) tmplCount[c.template_id] = (tmplCount[c.template_id]||0)+1; });
     html += `<div class="cd-sec-title">My programs (library)</div><div class="cd-table-wrap"><table class="cd-table"><thead><tr>
-      <th>Program</th><th>Trainees doing it</th><th></th></tr></thead><tbody>`;
-    if (!lib || !lib.length) html += `<tr><td colspan="3"><div class="cd-empty">No programs yet — click "+ New program (library)".</div></td></tr>`;
+      <th>Program</th><th>Trainees doing it</th><th>Type</th><th></th></tr></thead><tbody>`;
+    if (!lib || !lib.length) html += `<tr><td colspan="4"><div class="cd-empty">No programs yet — click "+ New program (library)".</div></td></tr>`;
     (lib||[]).forEach(p => {
       const n = tmplCount[p.id] || 0;
       html += `<tr><td><strong>${esc(p.name)}</strong></td><td>${n}</td>
+        <td><button class="btn cd-gen-toggle" data-id="${esc(p.id)}" data-val="${p.is_generic?0:1}">${p.is_generic?'Generic ✓':'Personal'}</button></td>
         <td>${n>0?`<button class="btn cd-leaderboard" data-id="${esc(p.id)}" data-name="${esc(p.name)}">Dashboard &amp; leaderboard</button>`:'<span class="cd-tsub">not assigned</span>'}</td></tr>`;
     });
     html += `</tbody></table></div>`;
@@ -4872,6 +4873,11 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       avatarSignedUrl(path).then(u => { if (u){ el.style.backgroundImage=`url("${u}")`; el.textContent=''; } });
     });
     body.querySelectorAll('.cd-leaderboard').forEach(b => b.addEventListener('click', () => openGenericDashboard(b.dataset.id, b.dataset.name)));
+    body.querySelectorAll('.cd-gen-toggle').forEach(b => b.addEventListener('click', async () => {
+      const root = b.dataset.id;  // apply to the master AND all trainee copies
+      await sb.from('programs').update({ is_generic: b.dataset.val==='1' }).or(`id.eq.${root},template_id.eq.${root}`);
+      renderCoachDashboard();
+    }));
     // expand/collapse trainee details
     body.querySelectorAll('.cd-exp').forEach(b => b.addEventListener('click', () => {
       const row = document.getElementById('cd-detail-' + b.dataset.uid);
