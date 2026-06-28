@@ -401,6 +401,18 @@
   .cd-exp:hover{background:var(--panel-2);color:var(--ink)}
   .cd-prog{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:6px 8px;color:var(--ink);font-size:12.5px;outline:none;max-width:220px}
   tr.cd-detail td{background:var(--panel-2)}
+  .get-started{padding:28px 18px;max-width:640px;margin:0 auto}
+  .gs-hero{text-align:center;margin-bottom:22px}
+  .gs-emoji{font-size:46px}
+  .gs-hero h2{margin:8px 0 6px;font-size:22px;color:var(--ink)}
+  .gs-hero p{color:var(--ink-soft);font-size:14px;line-height:1.55;max-width:480px;margin:0 auto}
+  .gs-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .gs-card{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;cursor:pointer;transition:.2s;font-family:inherit}
+  .gs-card:hover{border-color:var(--blue);transform:translateY(-2px);box-shadow:0 8px 22px rgba(0,0,0,.18)}
+  .gs-ic{font-size:22px;width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:var(--panel-2);margin-bottom:6px}
+  .gs-t{font-weight:800;color:var(--ink);font-size:15px}
+  .gs-d{font-size:12.5px;color:var(--ink-soft)}
+  @media(max-width:520px){.gs-grid{grid-template-columns:1fr}}
   .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px}
   .kpi{border:1px solid var(--line);border-radius:14px;padding:14px 16px;background:var(--panel)}
   .kpi-num{font-family:'Space Grotesk';font-size:28px;font-weight:800;color:var(--ink);line-height:1.1}
@@ -3976,11 +3988,11 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
   const pmForm  = document.getElementById('programForm');
   const pmSave  = document.getElementById('pmSave');
   const pmDelete = document.getElementById('pmDelete');
-  function openProgramModal(){
+  function openProgramModal(presetSource){
     pmTitle.textContent = 'New Program';
     pmForm.reset();
     pmForm.elements.start_date.value = todayKey();
-    pmForm.elements.source.value = 'empty';
+    pmForm.elements.source.value = (presetSource && ['empty','template','file','ai'].includes(presetSource)) ? presetSource : 'empty';
     updateSourceRows();
     pmDelete.style.display = 'none';
     programModal.classList.add('open');
@@ -4298,6 +4310,41 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       .subscribe();
   }
 
+  function renderGetStarted(self){
+    const detail = document.getElementById('dayDetail');
+    if (!detail) return;
+    if (!self){
+      detail.innerHTML = `<div class="get-started"><div class="gs-hero"><div class="gs-emoji">🏋️</div>
+        <h2>No program yet</h2><p>This trainee has no program. Assign one from your library or create a new one.</p></div></div>`;
+      return;
+    }
+    const first = currentProfile?.display_name ? ', ' + esc(currentProfile.display_name.split(' ')[0]) : '';
+    detail.innerHTML = `<div class="get-started">
+      <div class="gs-hero">
+        <div class="gs-emoji">🏋️</div>
+        <h2>Welcome${first}!</h2>
+        <p>Plan your workouts, track every set, log results &amp; videos, and see your progress. A coach can also build programs for you and follow your results. To begin, choose how to set up your first program:</p>
+      </div>
+      <div class="gs-grid">
+        <button class="gs-card" data-act="empty"><div class="gs-ic">＋</div><div class="gs-t">Create a program</div><div class="gs-d">Build it day by day</div></button>
+        <button class="gs-card" data-act="file"><div class="gs-ic">📄</div><div class="gs-t">Import a file</div><div class="gs-d">PDF / Excel / image — AI organizes it</div></button>
+        <button class="gs-card" data-act="ai"><div class="gs-ic">✨</div><div class="gs-t">Generate with AI</div><div class="gs-d">Describe your goals</div></button>
+        <button class="gs-card" data-act="coach"><div class="gs-ic">👥</div><div class="gs-t">Join a coach</div><div class="gs-d">Enter an invite code</div></button>
+      </div>
+    </div>`;
+    detail.querySelectorAll('.gs-card').forEach(c => c.addEventListener('click', async () => {
+      const act = c.dataset.act;
+      if (act === 'coach'){
+        const code = prompt('Enter your coach invite code:');
+        if (!code) return;
+        const r = await redeemCoachCode(code.trim(), false);
+        if (r){ await refreshSelfLock(); await bootUser(); }
+        return;
+      }
+      openProgramModal(act);
+    }));
+  }
+
   let realtimeSet = false;
   async function bootUser(){
     setDayLoading('Loading your training data...');
@@ -4339,19 +4386,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       finishedDates = fin;
       renderCalendar(); renderDayDetail(); buildCharts(); updateArchiveBadge(); renderProgramsList();
       renderTraineeBanner();
-      if (!programs.length){
-        const detail = document.getElementById('dayDetail');
-        if (detail) detail.innerHTML = `<div style="padding:50px 22px;text-align:center;color:var(--ink-soft)">
-          <div style="font-size:42px;margin-bottom:10px">🏋️</div>
-          <strong style="color:var(--ink);font-size:16px">No program yet</strong>
-          <div style="margin-top:8px;font-size:13.5px;max-width:340px;margin-inline:auto">
-            ${self ? 'Create your own program, or wait for your coach to assign one to you.' : 'This trainee has no program yet.'}
-          </div>
-          ${self ? `<button class="btn btn-primary" id="emptyCreateBtn" style="margin-top:16px">Create a program</button>` : ''}
-        </div>`;
-        const ec = document.getElementById('emptyCreateBtn');
-        if (ec) ec.addEventListener('click', () => { openSidePanel(); document.querySelector('.side-nav button[data-stab="program"]').click(); openProgramModal(); });
-      }
+      if (!programs.length){ renderGetStarted(self); }
       if (document.querySelector('.side-section[data-section="prs"].active')) renderPrs();
       if (!realtimeSet){ setupRealtime(); realtimeSet = true; }
     } catch(e){
