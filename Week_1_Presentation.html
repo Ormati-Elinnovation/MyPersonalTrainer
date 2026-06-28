@@ -1215,6 +1215,18 @@
   </div>
 </div>
 
+<!-- Per-block leaderboard -->
+<div class="modal" id="lbModal" aria-hidden="true">
+  <div class="modal-backdrop" data-close-lb></div>
+  <div class="modal-card" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h3>🏆 <span id="lbTitle">Leaderboard</span></h3>
+      <button class="modal-close" data-close-lb aria-label="Close">×</button>
+    </div>
+    <div class="modal-body" id="lbBody"></div>
+  </div>
+</div>
+
 <!-- Admin dashboard (full page) -->
 <div class="coach-dash" id="adminDashboard" aria-hidden="true">
   <div class="cd-head">
@@ -2175,7 +2187,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const program = {};
     data.forEach(b => {
       if (!program[b.date]) program[b.date] = [];
-      program[b.date].push({ id: b.id, icon: b.icon, cat: b.cat, name: b.name, body: b.body || '', timer: b.timer || null });
+      program[b.date].push({ id: b.id, icon: b.icon, cat: b.cat, name: b.name, body: b.body || '', timer: b.timer || null, origin_block_id: b.origin_block_id || null });
     });
     return program;
   }
@@ -2890,21 +2902,31 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     }
   }
 
+  function currentProgramIsGeneric(){
+    return !!programs.find(p => p.id === currentProgramId)?.is_generic;
+  }
   function buildBlockElement(b){
     const el = document.createElement('div');
     el.className = 'block';
     el.dataset.id = b.id;
+    const generic = currentProgramIsGeneric();
+    const originId = b.origin_block_id || b.id;
     el.innerHTML = `
       <div class="block-head">
         <div class="icon"><svg><use href="#${esc(b.icon)}"/></svg></div>
-        <button class="block-edit"><svg><use href="#i-edit"/></svg>Edit</button>
+        <div style="display:flex;gap:6px">
+          ${generic ? `<button class="block-edit block-lb"><svg><use href="#i-group"/></svg>Leaderboard</button>` : ''}
+          <button class="block-edit"><svg><use href="#i-edit"/></svg>Edit</button>
+        </div>
       </div>
       <h4>${esc(b.cat)}</h4>
       <div class="name">${esc(b.name)}</div>
       <div class="body">${linkify(esc(b.body))}</div>
       ${timerHTML(b.timer)}
     `;
-    el.querySelector('.block-edit').addEventListener('click', () => openModal(b.id));
+    el.querySelector('.block-edit:not(.block-lb)').addEventListener('click', () => openModal(b.id));
+    const lb = el.querySelector('.block-lb');
+    if (lb) lb.addEventListener('click', () => openBlockLeaderboard(originId, b.name));
     if (b.timer) initTimer(el.querySelector('.timer'));
     injectTracker(el, b.id);
     return el;
@@ -3935,14 +3957,17 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       const meta = [
         p.source === 'template' ? 'Template' : p.source === 'ai' ? 'AI' : p.source === 'file' ? 'File' : 'Custom',
         p.start_date ? 'Start ' + fmtDateShort(p.start_date) : null,
-        p.is_default ? 'Default' : null
+        p.is_default ? 'Default' : null,
+        p.is_generic ? 'Generic' : null
       ].filter(Boolean).join(' · ');
+      const canFlag = currentProfile?.is_coach || currentProfile?.is_admin;
       return `<div class="program-card ${active ? 'active':''}" data-id="${esc(p.id)}">
         <div class="pc-info">
           <div class="pc-name">${esc(p.name)}</div>
           <div class="pc-meta">${esc(meta)}</div>
         </div>
         <div class="pc-actions">
+          ${canFlag ? `<button class="pc-btn pc-generic" title="Generic = per-block leaderboards">${p.is_generic?'Generic ✓':'Make generic'}</button>` : ''}
           <button class="pc-btn pc-edit" title="Rename">✎</button>
           ${active ? '' : `<button class="pc-btn pc-switch">Open</button>`}
           ${p.is_default ? '' : `<button class="pc-btn danger pc-delete">×</button>`}
@@ -3952,9 +3977,18 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     wrap.querySelectorAll('.program-card').forEach(card => {
       const id = card.dataset.id;
       card.addEventListener('click', (e) => {
-        if (e.target.closest('.pc-delete') || e.target.closest('.pc-edit')) return;
+        if (e.target.closest('.pc-delete') || e.target.closest('.pc-edit') || e.target.closest('.pc-generic')) return;
         if (id !== currentProgramId) switchProgram(id);
         closeSidePanel();   // show the picked program on the main page, close the tray
+      });
+      const genBtn = card.querySelector('.pc-generic');
+      if (genBtn) genBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const p = programs.find(x => x.id === id); if (!p) return;
+        await sb.from('programs').update({ is_generic: !p.is_generic }).eq('id', id);
+        programs = await loadPrograms();
+        renderProgramsList();
+        if (id === currentProgramId) renderDayDetail(); // refresh per-block leaderboard buttons
       });
       const editBtn = card.querySelector('.pc-edit');
       if (editBtn) editBtn.addEventListener('click', async (e) => {
@@ -4992,7 +5026,8 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const { error: pe } = await sb.from('programs').insert({
       id: newId, user_id: traineeId, name: src.name, description: src.description || '',
       source: 'assigned', start_date: newStart, is_default: false, position: 0,
-      assigned_by_coach_id: currentUser.id, template_id: sourceId
+      assigned_by_coach_id: currentUser.id, template_id: sourceId,
+      is_generic: mode !== 'personal'
     });
     if (pe) throw pe;
     if (srcBlocks && srcBlocks.length){
@@ -5149,6 +5184,34 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       renderGenericDashboard(templateId, name);
     }));
   }
+
+  /* ---- per-block leaderboard popup (used from each generic-program block) ---- */
+  async function openBlockLeaderboard(originId, name){
+    document.getElementById('lbTitle').textContent = name || 'Leaderboard';
+    const body = document.getElementById('lbBody');
+    body.innerHTML = `<div class="search-empty">Loading…</div>`;
+    const m = document.getElementById('lbModal');
+    m.classList.add('open'); m.setAttribute('aria-hidden','false');
+    const { data, error } = await sb.rpc('crossfit_block_leaderboard', { p_origin: originId });
+    if (error){ body.innerHTML = `<div class="search-empty">${esc(error.message)}</div>`; return; }
+    const sdir = data?.score_dir;
+    let entries = (data?.entries || []).map(e => {
+      const results = Array.isArray(e.results) ? e.results : [];
+      const scores = results.map(parseScore).filter(v => v != null);
+      let best = null;
+      if (scores.length) best = sdir === 'low' ? Math.min(...scores) : Math.max(...scores);
+      return { name: e.name, raw: results.join(', '), score: best, is_me: e.is_me };
+    }).filter(e => e.raw);
+    if (sdir){
+      entries.sort((a,b)=>{ if(a.score==null)return 1; if(b.score==null)return -1; return sdir==='low'?a.score-b.score:b.score-a.score; });
+    }
+    if (!entries.length){ body.innerHTML = `<p class="muted-note">No results logged yet. Be the first — log your result on this workout!</p>`; return; }
+    body.innerHTML = `<div class="cd-table-wrap"><table class="cd-table"><thead><tr><th>#</th><th>Athlete</th><th>Result</th></tr></thead><tbody>` +
+      entries.map((e,i)=>`<tr${e.is_me?' style="background:rgba(167,200,234,.14)"':''}><td>${sdir?(i+1):'•'}</td><td>${esc(e.name)}${e.is_me?' <span class="cd-tsub">(you)</span>':''}</td><td>${esc(e.raw)}</td></tr>`).join('') +
+      `</tbody></table></div>`;
+  }
+  function closeLbModal(){ const m=document.getElementById('lbModal'); m.classList.remove('open'); m.setAttribute('aria-hidden','true'); }
+  document.querySelectorAll('[data-close-lb]').forEach(el => el.addEventListener('click', closeLbModal));
 
   /* ====================== ADMIN DASHBOARD (full page) ====================== */
   function openAdminDashboard(){
