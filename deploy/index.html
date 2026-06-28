@@ -1179,6 +1179,18 @@
   <div class="cd-body" id="coachDashBody"></div>
 </div>
 
+<!-- Assign program from library -->
+<div class="modal" id="assignModal" aria-hidden="true">
+  <div class="modal-backdrop" data-close-assign></div>
+  <div class="modal-card" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h3>Assign a program to <span id="assignTraineeName"></span></h3>
+      <button class="modal-close" data-close-assign aria-label="Close">×</button>
+    </div>
+    <div class="modal-body" id="assignBody"></div>
+  </div>
+</div>
+
 <!-- Admin dashboard (full page) -->
 <div class="coach-dash" id="adminDashboard" aria-hidden="true">
   <div class="cd-head">
@@ -4603,6 +4615,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
         <input type="email" id="cdInviteEmail" placeholder="trainee@email.com" ${atLimit?'disabled':''}></div>
       <button class="btn btn-primary" id="cdAddByEmail" ${atLimit?'disabled':''}>Add trainee</button>
       <button class="btn" id="cdGenInvite" ${atLimit?'disabled':''}>Or generate code</button>
+      <button class="btn" id="cdNewProgram">+ New program (library)</button>
     </div>
     <div id="cdInviteOut"></div>`;
 
@@ -4632,6 +4645,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
         <td><button class="cd-add" title="New program for ${esc(nm)}" data-id="${l.trainee_user_id}" data-name="${esc(nm)}">+</button></td>
         <td><div class="cd-actions">
           <button class="btn cd-view" data-id="${l.trainee_user_id}" data-name="${esc(nm)}">View</button>
+          <button class="btn cd-assign" data-id="${l.trainee_user_id}" data-name="${esc(nm)}">Assign</button>
           <button class="btn cd-unlink" data-id="${l.id}">Unlink</button>
         </div></td>
       </tr>`;
@@ -4672,10 +4686,18 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       closeCoachDashboard();
       openProgramModal();
     }));
+    document.getElementById('cdNewProgram')?.addEventListener('click', async () => {
+      // build a program in the coach's own library (self context)
+      targetUserId = null; viewingTrainee = null;
+      programs = await loadPrograms();
+      closeCoachDashboard();
+      openProgramModal();
+    });
     body.querySelectorAll('.cd-view').forEach(b => b.addEventListener('click', async () => {
       await viewUserData(b.dataset.id, b.dataset.name);
       closeCoachDashboard();
     }));
+    body.querySelectorAll('.cd-assign').forEach(b => b.addEventListener('click', () => openAssignModal(b.dataset.id, b.dataset.name)));
     body.querySelectorAll('.cd-lock').forEach(b => b.addEventListener('click', async () => {
       await sb.from('crossfit_coach_links').update({ trainee_can_edit: b.dataset.val==='1' }).eq('id', b.dataset.id);
       renderCoachDashboard();
@@ -4734,6 +4756,71 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       renderAdminPanel();
     }));
   }
+
+  /* ====================== ASSIGN FROM LIBRARY ====================== */
+  // Copy one of the coach's existing programs (the "arsenal") to a trainee,
+  // linking the copy to the source so generic-program leaderboards can group them.
+  async function assignProgramToTrainee(traineeId, sourceId){
+    const { data: src, error: se } = await sb.from('programs').select('*').eq('id', sourceId).single();
+    if (se || !src) throw new Error('Program not found');
+    const { data: srcBlocks, error: be } = await sb.from('blocks').select('*')
+      .eq('program_id', sourceId).order('date').order('position');
+    if (be) throw be;
+    const newId = 'prg-' + Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4);
+    const { error: pe } = await sb.from('programs').insert({
+      id: newId, user_id: traineeId, name: src.name, description: src.description || '',
+      source: 'assigned', start_date: src.start_date || todayKey(), is_default: false, position: 0,
+      assigned_by_coach_id: currentUser.id, template_id: sourceId
+    });
+    if (pe) throw pe;
+    if (srcBlocks && srcBlocks.length){
+      const rows = srcBlocks.map(b => ({
+        id: uid(), user_id: traineeId, program_id: newId,
+        date: b.date, icon: b.icon, cat: b.cat, name: b.name, body: b.body || '',
+        timer: b.timer || null, position: b.position || 0,
+        origin_block_id: b.origin_block_id || b.id, score_dir: b.score_dir || null
+      }));
+      const { error: ie } = await sb.from('blocks').insert(rows);
+      if (ie) throw ie;
+    }
+    return newId;
+  }
+
+  let assignTraineeId = null;
+  async function openAssignModal(traineeId, name){
+    assignTraineeId = traineeId;
+    document.getElementById('assignTraineeName').textContent = name || 'trainee';
+    const box = document.getElementById('assignBody');
+    box.innerHTML = `<div class="search-empty">Loading your programs…</div>`;
+    document.getElementById('assignModal').classList.add('open');
+    document.getElementById('assignModal').setAttribute('aria-hidden','false');
+    const { data: progs, error } = await sb.from('programs').select('id, name, start_date, created_at')
+      .eq('user_id', currentUser.id).order('created_at', { ascending:false });
+    if (error){ box.innerHTML = `<div class="search-empty">${esc(error.message)}</div>`; return; }
+    if (!progs || !progs.length){
+      box.innerHTML = `<p class="muted-note">You have no programs in your library yet. Create one first (New program), then assign it.</p>`;
+      return;
+    }
+    box.innerHTML = `<p class="muted-note">Pick a program from your library to copy to this trainee.</p>` +
+      progs.map(p => `<div class="coach-row">
+        <span><strong>${esc(p.name)}</strong>${p.start_date?` · <span class="cd-tsub">${esc(p.start_date)}</span>`:''}</span>
+        <button class="btn btn-primary assign-pick" data-id="${esc(p.id)}">Assign</button>
+      </div>`).join('');
+    box.querySelectorAll('.assign-pick').forEach(b => b.addEventListener('click', async () => {
+      b.disabled = true; b.textContent = 'Assigning…';
+      try {
+        await assignProgramToTrainee(assignTraineeId, b.dataset.id);
+        closeAssignModal();
+        if (document.getElementById('coachDashboard').classList.contains('open')) renderCoachDashboard();
+        alert('Program assigned to the trainee.');
+      } catch(e){ alert('Could not assign: ' + (e.message||e)); b.disabled=false; b.textContent='Assign'; }
+    }));
+  }
+  function closeAssignModal(){
+    const m = document.getElementById('assignModal');
+    m.classList.remove('open'); m.setAttribute('aria-hidden','true');
+  }
+  document.querySelectorAll('[data-close-assign]').forEach(el => el.addEventListener('click', closeAssignModal));
 
   /* ====================== ADMIN DASHBOARD (full page) ====================== */
   function openAdminDashboard(){
