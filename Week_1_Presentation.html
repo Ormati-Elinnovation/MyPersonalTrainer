@@ -400,6 +400,7 @@
   .cd-exp{background:transparent;border:none;color:var(--ink-soft);cursor:pointer;font-size:11px;padding:4px 6px;border-radius:6px}
   .cd-exp:hover{background:var(--panel-2);color:var(--ink)}
   .cd-prog{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:6px 8px;color:var(--ink);font-size:12.5px;outline:none;max-width:220px}
+  .cd-startdate{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:6px 8px;color:var(--ink);font-size:12.5px;outline:none}
   tr.cd-detail td{background:var(--panel-2)}
   .get-started{padding:28px 18px;max-width:640px;margin:0 auto}
   .gs-hero{text-align:center;margin-bottom:22px}
@@ -4819,7 +4820,8 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const { data: links, error } = await sb.from('crossfit_coach_links').select('*')
       .eq('coach_user_id', currentUser.id).order('created_at', { ascending:false });
     if (error){ body.innerHTML = `<div class="cd-empty">${esc(error.message)}</div>`; return; }
-    const active  = (links||[]).filter(l => l.status==='active' && l.trainee_user_id);
+    const linked  = (links||[]).filter(l => l.trainee_user_id);          // active + inactive
+    const active  = linked.filter(l => l.status === 'active');
     const invited = (links||[]).filter(l => l.status==='invited');
 
     // coach's library (for the program dropdown)
@@ -4829,8 +4831,8 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
 
     // trainee profiles, their current program, and per-trainee performance
     let profs = {}, progByUser = {}, perf = {};
-    if (active.length){
-      const ids = active.map(l => l.trainee_user_id);
+    if (linked.length){
+      const ids = linked.map(l => l.trainee_user_id);
       const [{ data: pr }, { data: pgs }, { data: trk }, { data: blk }, { data: fin }] = await Promise.all([
         sb.from('profiles').select('user_id, display_name, email, phone, avatar_url').in('user_id', ids),
         sb.from('programs').select('user_id, name, start_date, is_default, created_at, template_id').in('user_id', ids).is('deleted_at', null),
@@ -4865,38 +4867,39 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     }
 
     html += `<div class="cd-table-wrap"><table class="cd-table"><thead><tr>
-      <th style="width:28px"></th><th>Trainee</th><th>Program</th><th>Start date</th><th>Editing</th><th>New</th><th></th>
+      <th style="width:28px"></th><th>Trainee</th><th>Program</th><th>Start date</th><th>Editing</th><th>Active</th><th>New</th><th></th>
     </tr></thead><tbody>`;
-    if (!active.length){
-      html += `<tr><td colspan="7"><div class="cd-empty">No trainees yet. Generate an invite code above and share it.</div></td></tr>`;
+    if (!linked.length){
+      html += `<tr><td colspan="8"><div class="cd-empty">No trainees yet. Generate an invite code above and share it.</div></td></tr>`;
     }
-    active.forEach(l => {
+    linked.forEach(l => {
       const uid = l.trainee_user_id;
       const p = profs[uid] || {};
-      const nm = p.display_name || p.email || 'Trainee';
+      const nm = p.display_name || p.email || l.invite_email || 'Trainee';
       const prog = progByUser[uid];
       const canEdit = l.trainee_can_edit !== false;
+      const isActive = l.status === 'active';
       const initial = (nm||'?').charAt(0).toUpperCase();
       const matchTmpl = prog && lib.some(L => L.id === prog.template_id);
       const progOpts = `<option value=""${matchTmpl?'':' selected'}>${prog?('Current: '+esc(prog.name)):'Assign a program…'}</option>` +
         lib.map(L => `<option value="${esc(L.id)}"${matchTmpl && prog.template_id===L.id?' selected':''}>${esc(L.name)}</option>`).join('');
       const pf = perf[uid] || { done:0, total:0, finished:0, lastTs:null, notes:[] };
       const pct = pf.total ? Math.round(pf.done/pf.total*100) : 0;
-      html += `<tr>
+      html += `<tr${isActive?'':' style="opacity:.55"'}>
         <td><button class="cd-exp" data-uid="${uid}" aria-label="Details">▶</button></td>
         <td><div class="cd-trainee"><div class="cd-av" data-av="${esc(p.avatar_url||'')}">${initial}</div>
-          <div><div class="cd-tname">${esc(nm)}</div><div class="cd-tsub">${esc(p.email||'')}${p.phone?' · '+esc(p.phone):''}</div></div></div></td>
+          <div><div class="cd-tname">${esc(nm)}</div><div class="cd-tsub">${esc(p.email||l.invite_email||'')}${p.phone?' · '+esc(p.phone):''}</div></div></div></td>
         <td><select class="cd-prog" data-id="${uid}">${progOpts}</select></td>
         <td>${prog?.start_date?esc(prog.start_date):'—'}</td>
         <td><button class="btn cd-lock" data-id="${l.id}" data-val="${canEdit?0:1}">${canEdit?'Can edit':'View-only'}</button></td>
+        <td><button class="btn cd-active" data-id="${l.id}" data-val="${isActive?0:1}" title="Toggle active">${isActive?'✓ Active':'Inactive'}</button></td>
         <td><button class="cd-add" title="New program for ${esc(nm)}" data-id="${uid}" data-name="${esc(nm)}">+</button></td>
         <td><div class="cd-actions">
           <button class="btn cd-view" data-id="${uid}" data-name="${esc(nm)}">View</button>
           <button class="btn cd-assign" data-id="${uid}" data-name="${esc(nm)}">Assign</button>
-          <button class="btn cd-unlink" data-id="${l.id}">Unlink</button>
         </div></td>
       </tr>
-      <tr class="cd-detail" id="cd-detail-${uid}" style="display:none"><td colspan="7">
+      <tr class="cd-detail" id="cd-detail-${uid}" style="display:none"><td colspan="8">
         <div style="padding:6px 4px">
           <div style="display:flex;gap:28px;flex-wrap:wrap">
             <div><div class="kpi-num" style="font-size:20px">${pf.done}/${pf.total}</div><div class="cd-tsub">Workouts completed</div></div>
@@ -4918,13 +4921,21 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const tmplCount = {};
     (copies||[]).forEach(c => { if (c.template_id) tmplCount[c.template_id] = (tmplCount[c.template_id]||0)+1; });
     html += `<div class="cd-sec-title">My programs (library)</div><div class="cd-table-wrap"><table class="cd-table"><thead><tr>
-      <th>Program</th><th>Trainees doing it</th><th>Type</th><th></th></tr></thead><tbody>`;
-    if (!lib || !lib.length) html += `<tr><td colspan="4"><div class="cd-empty">No programs yet — click "+ New program (library)".</div></td></tr>`;
+      <th>Program</th><th>Start date</th><th>Trainees</th><th>Type</th><th>Actions</th></tr></thead><tbody>`;
+    if (!lib || !lib.length) html += `<tr><td colspan="5"><div class="cd-empty">No programs yet — click "+ New program (library)".</div></td></tr>`;
     (lib||[]).forEach(p => {
       const n = tmplCount[p.id] || 0;
-      html += `<tr><td><strong>${esc(p.name)}</strong></td><td>${n}</td>
+      html += `<tr>
+        <td><strong>${esc(p.name)}</strong></td>
+        <td><input type="date" class="cd-startdate" data-id="${esc(p.id)}" value="${esc(p.start_date||'')}" title="Aligns all trainees on this program"></td>
+        <td>${n}</td>
         <td><button class="btn cd-gen-toggle" data-id="${esc(p.id)}" data-val="${p.is_generic?0:1}">${p.is_generic?'Generic ✓':'Personal'}</button></td>
-        <td>${n>0?`<button class="btn cd-leaderboard" data-id="${esc(p.id)}" data-name="${esc(p.name)}">Dashboard &amp; leaderboard</button>`:'<span class="cd-tsub">not assigned</span>'}</td></tr>`;
+        <td><div class="cd-actions">
+          <button class="btn cd-edit-prog" data-id="${esc(p.id)}">Edit</button>
+          <button class="btn cd-dup-prog" data-id="${esc(p.id)}">Duplicate</button>
+          <button class="btn cd-pdf-prog" data-id="${esc(p.id)}" data-name="${esc(p.name)}">PDF</button>
+          ${n>0?`<button class="btn cd-leaderboard" data-id="${esc(p.id)}" data-name="${esc(p.name)}">Leaderboard</button>`:''}
+        </div></td></tr>`;
     });
     html += `</tbody></table></div>`;
 
@@ -4945,6 +4956,25 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       avatarSignedUrl(path).then(u => { if (u){ el.style.backgroundImage=`url("${u}")`; el.textContent=''; } });
     });
     body.querySelectorAll('.cd-leaderboard').forEach(b => b.addEventListener('click', () => openGenericDashboard(b.dataset.id, b.dataset.name)));
+    body.querySelectorAll('.cd-startdate').forEach(inp => inp.addEventListener('change', async () => {
+      if (!inp.value) return;
+      inp.disabled = true;
+      const { error } = await sb.rpc('crossfit_set_program_start', { p_program: inp.dataset.id, p_start: inp.value });
+      if (error){ alert('Could not set start date: ' + error.message); inp.disabled = false; return; }
+      renderCoachDashboard();
+    }));
+    body.querySelectorAll('.cd-edit-prog').forEach(b => b.addEventListener('click', async () => {
+      targetUserId = null; viewingTrainee = null;
+      programs = await loadPrograms();
+      closeCoachDashboard();
+      await switchProgram(b.dataset.id);
+    }));
+    body.querySelectorAll('.cd-dup-prog').forEach(b => b.addEventListener('click', async () => {
+      b.disabled = true; b.textContent = '…';
+      try { await duplicateProgram(b.dataset.id); renderCoachDashboard(); }
+      catch(e){ alert('Could not duplicate: ' + (e.message||e)); b.disabled=false; b.textContent='Duplicate'; }
+    }));
+    body.querySelectorAll('.cd-pdf-prog').forEach(b => b.addEventListener('click', () => printProgramPdf(b.dataset.id, b.dataset.name)));
     body.querySelectorAll('.cd-gen-toggle').forEach(b => b.addEventListener('click', async () => {
       const root = b.dataset.id;  // apply to the master AND all trainee copies
       await sb.from('programs').update({ is_generic: b.dataset.val==='1' }).or(`id.eq.${root},template_id.eq.${root}`);
@@ -5032,9 +5062,8 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       await sb.from('crossfit_coach_links').update({ trainee_can_edit: b.dataset.val==='1' }).eq('id', b.dataset.id);
       renderCoachDashboard();
     }));
-    body.querySelectorAll('.cd-unlink').forEach(b => b.addEventListener('click', async () => {
-      if (!confirm('Unlink this trainee?')) return;
-      await sb.from('crossfit_coach_links').update({ status:'revoked' }).eq('id', b.dataset.id);
+    body.querySelectorAll('.cd-active').forEach(b => b.addEventListener('click', async () => {
+      await sb.from('crossfit_coach_links').update({ status: b.dataset.val==='1' ? 'active' : 'inactive' }).eq('id', b.dataset.id);
       renderCoachDashboard();
     }));
   }
@@ -5124,6 +5153,49 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       if (ie) throw ie;
     }
     return newId;
+  }
+
+  async function duplicateProgram(sourceId){
+    const { data: src, error: se } = await sb.from('programs').select('*').eq('id', sourceId).single();
+    if (se || !src) throw new Error('Program not found');
+    const { data: srcBlocks } = await sb.from('blocks').select('*').eq('program_id', sourceId).order('date').order('position');
+    const newId = 'prg-' + Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4);
+    const { error: pe } = await sb.from('programs').insert({
+      id: newId, user_id: currentUser.id, name: (src.name||'Program') + ' (copy)', description: src.description || '',
+      source: src.source || 'manual', start_date: src.start_date || todayKey(), is_default: false, position: 0, is_generic: !!src.is_generic
+    });
+    if (pe) throw pe;
+    if (srcBlocks && srcBlocks.length){
+      const rows = srcBlocks.map(b => ({ id: uid(), user_id: currentUser.id, program_id: newId, date: b.date,
+        icon: b.icon, cat: b.cat, name: b.name, body: b.body || '', timer: b.timer || null, position: b.position || 0,
+        score_type: b.score_type || null, score_dir: b.score_dir || null }));
+      const { error: ie } = await sb.from('blocks').insert(rows);
+      if (ie) throw ie;
+    }
+    return newId;
+  }
+  async function printProgramPdf(programId, name){
+    const { data: blocks } = await sb.from('blocks').select('*').eq('program_id', programId).order('date').order('position');
+    const byDate = {};
+    (blocks||[]).forEach(b => { (byDate[b.date] = byDate[b.date] || []).push(b); });
+    const dates = Object.keys(byDate).sort();
+    let html = `<html><head><title>${esc(name||'Program')}</title><meta charset="utf-8"><style>
+      body{font-family:Inter,Arial,sans-serif;padding:28px;color:#111}
+      h1{font-size:22px;margin:0 0 4px} .sub{color:#666;font-size:12px;margin-bottom:16px}
+      h2{font-size:14px;margin:18px 0 6px;border-bottom:1px solid #ccc;padding-bottom:4px;color:#0a3a66}
+      .blk{margin:7px 0;padding-left:10px;border-left:3px solid #cdd}
+      .cat{font-size:10px;text-transform:uppercase;color:#888;letter-spacing:.6px}
+      .nm{font-weight:700;font-size:14px} .bd{white-space:pre-wrap;color:#333;font-size:12.5px;margin-top:2px}
+    </style></head><body><h1>${esc(name||'Program')}</h1><div class="sub">${dates.length} day(s) · ${(blocks||[]).length} workouts</div>`;
+    dates.forEach(d => {
+      html += `<h2>${esc(d)}</h2>`;
+      byDate[d].forEach(b => { html += `<div class="blk"><div class="cat">${esc(b.cat||'')}</div><div class="nm">${esc(b.name||'')}</div><div class="bd">${esc(b.body||'')}</div></div>`; });
+    });
+    html += `</body></html>`;
+    const w = window.open('', '_blank');
+    if (!w){ alert('Allow pop-ups to download the PDF.'); return; }
+    w.document.write(html); w.document.close();
+    setTimeout(() => { try { w.print(); } catch{} }, 500);
   }
 
   let assignTraineeId = null;
