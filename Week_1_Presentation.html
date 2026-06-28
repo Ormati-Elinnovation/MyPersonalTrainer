@@ -4326,9 +4326,16 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       if (self) currentProfile = viewProfile;
       PROGRAM = prog;
       tkData  = tk;
-      if (!PROGRAM[selectedKey]){
+      {
+        // Land on today's workout (generic shared-calendar joiners start at "today"),
+        // or the nearest program date if today has none.
+        const tk2 = todayKey();
         const dates = Object.keys(PROGRAM).sort();
-        if (dates.length) selectedKey = dates.includes(todayKey()) ? todayKey() : dates[0];
+        if (dates.length){
+          if (PROGRAM[tk2]) selectedKey = tk2;
+          else selectedKey = dates.reduce((best, d) =>
+            Math.abs(parseKey(d) - parseKey(tk2)) < Math.abs(parseKey(best) - parseKey(tk2)) ? d : best, dates[0]);
+        }
       }
       weekStart = startOfWeek(selectedKey);
       finishedDates = fin;
@@ -4921,23 +4928,32 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
   /* ====================== ASSIGN FROM LIBRARY ====================== */
   // Copy one of the coach's existing programs (the "arsenal") to a trainee,
   // linking the copy to the source so generic-program leaderboards can group them.
-  async function assignProgramToTrainee(traineeId, sourceId){
+  async function assignProgramToTrainee(traineeId, sourceId, mode){
+    // mode 'generic' (default): keep the program's shared calendar dates.
+    // mode 'personal': re-base so day 1 = today (the assignment day).
     const { data: src, error: se } = await sb.from('programs').select('*').eq('id', sourceId).single();
     if (se || !src) throw new Error('Program not found');
     const { data: srcBlocks, error: be } = await sb.from('blocks').select('*')
       .eq('program_id', sourceId).order('date').order('position');
     if (be) throw be;
+    let shiftDays = 0;
+    if (mode === 'personal'){
+      const dates = (srcBlocks||[]).map(b => b.date).filter(Boolean).sort();
+      if (dates.length) shiftDays = Math.round((parseKey(todayKey()) - parseKey(dates[0])) / 86400000);
+    }
+    const newStart = mode === 'personal' ? todayKey() : (src.start_date || todayKey());
     const newId = 'prg-' + Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4);
     const { error: pe } = await sb.from('programs').insert({
       id: newId, user_id: traineeId, name: src.name, description: src.description || '',
-      source: 'assigned', start_date: src.start_date || todayKey(), is_default: false, position: 0,
+      source: 'assigned', start_date: newStart, is_default: false, position: 0,
       assigned_by_coach_id: currentUser.id, template_id: sourceId
     });
     if (pe) throw pe;
     if (srcBlocks && srcBlocks.length){
       const rows = srcBlocks.map(b => ({
         id: uid(), user_id: traineeId, program_id: newId,
-        date: b.date, icon: b.icon, cat: b.cat, name: b.name, body: b.body || '',
+        date: (shiftDays && b.date) ? addDays(b.date, shiftDays) : b.date,
+        icon: b.icon, cat: b.cat, name: b.name, body: b.body || '',
         timer: b.timer || null, position: b.position || 0,
         origin_block_id: b.origin_block_id || b.id, score_dir: b.score_dir || null
       }));
@@ -4962,19 +4978,24 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       box.innerHTML = `<p class="muted-note">You have no programs in your library yet. Create one first (New program), then assign it.</p>`;
       return;
     }
-    box.innerHTML = `<p class="muted-note">Pick a program from your library to copy to this trainee.</p>` +
-      progs.map(p => `<div class="coach-row">
+    box.innerHTML = `<p class="muted-note">Pick a program to copy to this trainee.<br>
+      <b>Generic</b> = keeps the program's shared dates (joins today on the shared calendar).<br>
+      <b>Personal</b> = restarts from today (day 1 = today).</p>` +
+      progs.map(p => `<div class="coach-row" style="flex-wrap:wrap;gap:6px">
         <span><strong>${esc(p.name)}</strong>${p.start_date?` · <span class="cd-tsub">${esc(p.start_date)}</span>`:''}</span>
-        <button class="btn btn-primary assign-pick" data-id="${esc(p.id)}">Assign</button>
+        <span style="display:flex;gap:6px">
+          <button class="btn btn-primary assign-pick" data-id="${esc(p.id)}" data-mode="generic">Generic</button>
+          <button class="btn assign-pick" data-id="${esc(p.id)}" data-mode="personal">Personal</button>
+        </span>
       </div>`).join('');
     box.querySelectorAll('.assign-pick').forEach(b => b.addEventListener('click', async () => {
-      b.disabled = true; b.textContent = 'Assigning…';
+      const orig = b.textContent; b.disabled = true; b.textContent = 'Assigning…';
       try {
-        await assignProgramToTrainee(assignTraineeId, b.dataset.id);
+        await assignProgramToTrainee(assignTraineeId, b.dataset.id, b.dataset.mode);
         closeAssignModal();
         if (document.getElementById('coachDashboard').classList.contains('open')) renderCoachDashboard();
         alert('Program assigned to the trainee.');
-      } catch(e){ alert('Could not assign: ' + (e.message||e)); b.disabled=false; b.textContent='Assign'; }
+      } catch(e){ alert('Could not assign: ' + (e.message||e)); b.disabled=false; b.textContent=orig; }
     }));
   }
   function closeAssignModal(){
