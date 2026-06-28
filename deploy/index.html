@@ -4689,7 +4689,8 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const atLimit = active.length >= MAX_TRAINEES;
     let html = `<div class="cd-invite">
       <div class="grow"><span class="lbl">Add trainee by email (${active.length}/${MAX_TRAINEES})</span>
-        <input type="email" id="cdInviteEmail" placeholder="trainee@email.com" ${atLimit?'disabled':''}></div>
+        <input type="email" id="cdInviteEmail" placeholder="Start typing a name or email…" list="cdEmailList" autocomplete="off" ${atLimit?'disabled':''}>
+        <datalist id="cdEmailList"></datalist></div>
       <button class="btn btn-primary" id="cdAddByEmail" ${atLimit?'disabled':''}>Add trainee</button>
       <button class="btn" id="cdGenInvite" ${atLimit?'disabled':''}>Or generate code</button>
       <button class="btn" id="cdNewProgram">+ New program (library)</button>
@@ -4803,6 +4804,21 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       targetUserId = null; viewingTrainee = null; selectedKey = todayKey();
       closeCoachDashboard(); await bootUser();
     });
+    // email typeahead — suggest registered users as the coach types
+    const emailInput = document.getElementById('cdInviteEmail');
+    if (emailInput){
+      let searchT;
+      emailInput.addEventListener('input', () => {
+        clearTimeout(searchT);
+        const q = emailInput.value.trim();
+        if (q.length < 2) return;
+        searchT = setTimeout(async () => {
+          const { data } = await sb.rpc('crossfit_search_users', { q });
+          const dl = document.getElementById('cdEmailList');
+          if (dl) dl.innerHTML = (data||[]).map(u => `<option value="${esc(u.email)}">${esc(u.display_name||'')}</option>`).join('');
+        }, 250);
+      });
+    }
     // add by email (direct link)
     document.getElementById('cdAddByEmail')?.addEventListener('click', async () => {
       const email = document.getElementById('cdInviteEmail').value.trim();
