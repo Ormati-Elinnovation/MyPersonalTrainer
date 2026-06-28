@@ -1099,6 +1099,8 @@
           <svg style="width:14px;height:14px;vertical-align:-2px;margin-right:4px"><use href="#i-plus"/></svg>
           Create New Program
         </button>
+        <h4 style="margin-top:20px">Recycle bin <span class="muted-note" style="font-weight:400">— restorable for 30 days</span></h4>
+        <div id="recycleBinList"></div>
       </div>
       <div class="side-section" data-section="archive">
         <div id="archiveList"></div>
@@ -1683,7 +1685,8 @@
   function isViewingSelf(){ return !targetUserId || targetUserId === currentUser?.id; }
 
   async function loadPrograms(){
-    const { data, error } = await sb.from('programs').select('*').eq('user_id', activeUserId()).order('position').order('created_at');
+    const { data, error } = await sb.from('programs').select('*').eq('user_id', activeUserId())
+      .is('deleted_at', null).order('position').order('created_at');
     if (error){ console.error(error); return []; }
     return data || [];
   }
@@ -1741,13 +1744,50 @@
     }
   }
   async function deleteProgram(id){
-    const { error } = await sb.from('programs').delete().eq('id', id);
+    // Soft-delete: move to the recycle bin (auto-purged after 30 days), not a hard delete.
+    const { error } = await sb.from('programs').update({ deleted_at: new Date().toISOString() }).eq('id', id);
     if (error){ alert('Could not delete: ' + error.message); throw error; }
     programs = await loadPrograms();
     if (currentProgramId === id){
       currentProgramId = programs[0]?.id || null;
       try { localStorage.setItem(PROGRAM_KEY, currentProgramId || ''); } catch {}
     }
+  }
+  async function restoreProgram(id){
+    const { error } = await sb.from('programs').update({ deleted_at: null }).eq('id', id);
+    if (error){ alert('Could not restore: ' + error.message); throw error; }
+  }
+  async function purgeProgram(id){
+    const { error } = await sb.from('programs').delete().eq('id', id);  // permanent (also removes its blocks)
+    if (error){ alert('Could not delete permanently: ' + error.message); throw error; }
+  }
+  async function loadDeletedPrograms(){
+    const { data, error } = await sb.from('programs').select('id, name, deleted_at')
+      .eq('user_id', activeUserId()).not('deleted_at', 'is', null).order('deleted_at', { ascending:false });
+    if (error){ console.error(error); return []; }
+    return data || [];
+  }
+  async function renderRecycleBin(){
+    const el = document.getElementById('recycleBinList'); if (!el) return;
+    el.innerHTML = `<p class="muted-note">Loading…</p>`;
+    const deleted = await loadDeletedPrograms();
+    if (!deleted.length){ el.innerHTML = `<p class="muted-note">Empty.</p>`; return; }
+    el.innerHTML = deleted.map(p => `<div class="coach-row">
+      <span>${esc(p.name)} <span class="cd-tsub">deleted ${fmtDay(p.deleted_at)}</span></span>
+      <span style="display:flex;gap:6px">
+        <button class="btn rb-restore" data-id="${esc(p.id)}">Restore</button>
+        <button class="btn btn-danger rb-purge" data-id="${esc(p.id)}">Delete forever</button>
+      </span></div>`).join('');
+    el.querySelectorAll('.rb-restore').forEach(b => b.addEventListener('click', async () => {
+      await restoreProgram(b.dataset.id);
+      programs = await loadPrograms();
+      renderProgramsList(); renderProgramSummary(); renderRecycleBin();
+    }));
+    el.querySelectorAll('.rb-purge').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('Delete this program permanently? This cannot be undone.')) return;
+      await purgeProgram(b.dataset.id);
+      renderRecycleBin();
+    }));
   }
   /* ============ AI / FILE PARSING ============ */
   const ANTHROPIC_KEY_KEY = 'anthropic-api-key';
@@ -3616,7 +3656,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       document.querySelectorAll('.side-nav button').forEach(b => b.classList.toggle('active', b === btn));
       document.querySelectorAll('.side-section').forEach(s => s.classList.toggle('active', s.dataset.section === btn.dataset.stab));
       if (btn.dataset.stab === 'archive') renderArchive();
-      if (btn.dataset.stab === 'program'){ renderProgramSummary(); renderProgramsList(); }
+      if (btn.dataset.stab === 'program'){ renderProgramSummary(); renderProgramsList(); renderRecycleBin(); }
       if (btn.dataset.stab === 'search') document.getElementById('searchInput').focus();
       if (btn.dataset.stab === 'prs') renderPrs();
       if (btn.dataset.stab === 'admin') renderAdminPanel();
@@ -3922,7 +3962,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       if (delBtn) delBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
         const p = programs.find(x => x.id === id);
-        if (!confirm(`Delete program "${p?.name}"?\n\nAll its workouts will be permanently removed. Tracker entries and videos linked to those workouts will also be deleted.`)) return;
+        if (!confirm(`Move program "${p?.name}" to the recycle bin?\n\nYou can restore it within 30 days from the recycle bin (in the Programs tab).`)) return;
         await deleteProgram(id);
         if (currentProgramId) await switchProgram(currentProgramId);
         renderProgramsList();
@@ -4621,7 +4661,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
 
     // coach's library (for the program dropdown)
     const { data: libData } = await sb.from('programs').select('id, name, start_date, created_at')
-      .eq('user_id', currentUser.id).order('created_at', { ascending:false });
+      .eq('user_id', currentUser.id).is('deleted_at', null).order('created_at', { ascending:false });
     const lib = libData || [];
 
     // trainee profiles, their current program, and per-trainee performance
@@ -4630,7 +4670,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       const ids = active.map(l => l.trainee_user_id);
       const [{ data: pr }, { data: pgs }, { data: trk }, { data: blk }, { data: fin }] = await Promise.all([
         sb.from('profiles').select('user_id, display_name, email, phone, avatar_url').in('user_id', ids),
-        sb.from('programs').select('user_id, name, start_date, is_default, created_at, template_id').in('user_id', ids),
+        sb.from('programs').select('user_id, name, start_date, is_default, created_at, template_id').in('user_id', ids).is('deleted_at', null),
         sb.from('tracker').select('user_id, done, notes, updated_at').in('user_id', ids),
         sb.from('blocks').select('user_id').in('user_id', ids),
         sb.from('day_finished').select('user_id').in('user_id', ids)
@@ -4708,7 +4748,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
 
     // ---- My programs (library) + how many trainees are on each ----
     const [{ data: copies }, { data: todayBlocks }] = await Promise.all([
-      sb.from('programs').select('template_id').eq('assigned_by_coach_id', currentUser.id),
+      sb.from('programs').select('template_id').eq('assigned_by_coach_id', currentUser.id).is('deleted_at', null),
       sb.from('blocks').select('name, cat').eq('user_id', currentUser.id).eq('date', todayKey()).order('position')
     ]);
     const tmplCount = {};
@@ -4900,7 +4940,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     document.getElementById('assignModal').classList.add('open');
     document.getElementById('assignModal').setAttribute('aria-hidden','false');
     const { data: progs, error } = await sb.from('programs').select('id, name, start_date, created_at')
-      .eq('user_id', currentUser.id).order('created_at', { ascending:false });
+      .eq('user_id', currentUser.id).is('deleted_at', null).order('created_at', { ascending:false });
     if (error){ box.innerHTML = `<div class="search-empty">${esc(error.message)}</div>`; return; }
     if (!progs || !progs.length){
       box.innerHTML = `<p class="muted-note">You have no programs in your library yet. Create one first (New program), then assign it.</p>`;
@@ -4956,7 +4996,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
 
     const [{ data: masterBlocks }, { data: copyPrograms }] = await Promise.all([
       sb.from('blocks').select('id, date, cat, name, position, score_dir').eq('program_id', templateId).order('date').order('position'),
-      sb.from('programs').select('id, user_id').eq('template_id', templateId)
+      sb.from('programs').select('id, user_id').eq('template_id', templateId).is('deleted_at', null)
     ]);
     const traineeIds = [...new Set((copyPrograms||[]).map(p => p.user_id))];
     let names = {};
@@ -5051,7 +5091,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const [profsR, linksR, progsR, trackR, finR, blocksR] = await Promise.all([
       sb.from('profiles').select('user_id, display_name, email, affiliate_box, avatar_url, is_coach, is_admin, created_at'),
       sb.from('crossfit_coach_links').select('coach_user_id, trainee_user_id, status, accepted_at'),
-      sb.from('programs').select('user_id, created_at'),
+      sb.from('programs').select('user_id, created_at').is('deleted_at', null),
       sb.from('tracker').select('user_id, done'),
       sb.from('day_finished').select('user_id'),
       sb.from('blocks').select('user_id')
