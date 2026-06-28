@@ -1610,8 +1610,10 @@
       { t:'📚 Programs', b:'Open the menu (top-right 👤) → <b>Programs</b> to create your own, import a file, generate with AI, or join a coach with an invite code.' },
       { t:'📊 PRs & Benchmarks', b:'Log your Weightlifting, Powerlifting and CrossFit benchmark PRs from the <b>PRs &amp; Benchmarks</b> tab.' },
     ];
-    if (currentProfile?.is_coach) steps.push({ t:'👥 Trainees Dashboard', b:'As a coach, tap <b>Coach</b> (top bar) to add trainees, assign programs, set a shared start date, and track everyone\'s progress &amp; leaderboards.' });
-    if (currentProfile?.is_admin) steps.push({ t:'⚡ Admin', b:'Tap <b>Admin</b> (top bar) for an overview of all users, coaches, and activity.' });
+    if (currentProfile?.is_coach){
+      steps.push({ t:'👥 Coaching — your trainees', b:'Tap <b>Coach</b> in the top bar to open your <b>Trainees Dashboard</b>. Add a trainee by email (with autocomplete) or send an invite code — up to 5 active trainees. Each trainee has a row showing their program, an expandable performance panel (✓ done, %, consistency, notes), an <b>Editing</b> setting and an <b>Active</b> toggle.' });
+      steps.push({ t:'📋 Coaching — programs & leaderboards', b:'Build programs in <b>My programs (library)</b>, then assign one to a trainee. Choose <b>Generic</b> (shared calendar — everyone aligned, with a per-block <b>leaderboard</b>) or <b>Personal</b> (starts today). Set one <b>Start date</b> to align all trainees together, and <b>Edit</b>, <b>Duplicate</b> or export a program to <b>PDF</b>. Mark a program Generic to enable the per-workout leaderboards.' });
+    }
     steps.push({ t:'✅ You are all set!', b:'Reopen this tour anytime from the <b>?</b> button at the top. Let\'s train! 💪' });
     return steps;
   }
