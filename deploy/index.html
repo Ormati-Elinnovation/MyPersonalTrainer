@@ -3985,10 +3985,14 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       if (genBtn) genBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
         const p = programs.find(x => x.id === id); if (!p) return;
-        await sb.from('programs').update({ is_generic: !p.is_generic }).eq('id', id);
+        const newVal = !p.is_generic;
+        // Apply to the whole template group: the master AND every trainee copy,
+        // so trainees doing this program also get per-block leaderboards.
+        const root = p.template_id || p.id;
+        await sb.from('programs').update({ is_generic: newVal }).or(`id.eq.${root},template_id.eq.${root}`);
         programs = await loadPrograms();
         renderProgramsList();
-        if (id === currentProgramId) renderDayDetail(); // refresh per-block leaderboard buttons
+        if (id === currentProgramId) renderDayDetail();
       });
       const editBtn = card.querySelector('.pc-edit');
       if (editBtn) editBtn.addEventListener('click', async (e) => {
