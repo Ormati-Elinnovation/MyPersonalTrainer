@@ -400,7 +400,7 @@
   .cd-exp{background:transparent;border:none;color:var(--ink-soft);cursor:pointer;font-size:11px;padding:4px 6px;border-radius:6px}
   .cd-exp:hover{background:var(--panel-2);color:var(--ink)}
   .cd-prog{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:6px 8px;color:var(--ink);font-size:12.5px;outline:none;max-width:220px}
-  .cd-startdate{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:6px 8px;color:var(--ink);font-size:12.5px;outline:none}
+  .cd-startdate,.cd-sel{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:6px 8px;color:var(--ink);font-size:12.5px;outline:none}
   tr.cd-detail td{background:var(--panel-2)}
   .get-started{padding:28px 18px;max-width:640px;margin:0 auto}
   .gs-hero{text-align:center;margin-bottom:22px}
@@ -4867,7 +4867,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     }
 
     html += `<div class="cd-table-wrap"><table class="cd-table"><thead><tr>
-      <th style="width:28px"></th><th>Trainee</th><th>Program</th><th>Start date</th><th>Editing</th><th>Active</th><th>New</th><th></th>
+      <th style="width:28px"></th><th>Trainee</th><th>Program</th><th>Joined</th><th>Editing</th><th>Active</th><th>New</th><th></th>
     </tr></thead><tbody>`;
     if (!linked.length){
       html += `<tr><td colspan="8"><div class="cd-empty">No trainees yet. Generate an invite code above and share it.</div></td></tr>`;
@@ -4889,14 +4889,13 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
         <td><button class="cd-exp" data-uid="${uid}" aria-label="Details">▶</button></td>
         <td><div class="cd-trainee"><div class="cd-av" data-av="${esc(p.avatar_url||'')}">${initial}</div>
           <div><div class="cd-tname">${esc(nm)}</div><div class="cd-tsub">${esc(p.email||l.invite_email||'')}${p.phone?' · '+esc(p.phone):''}</div></div></div></td>
-        <td><select class="cd-prog" data-id="${uid}">${progOpts}</select></td>
-        <td>${prog?.start_date?esc(prog.start_date):'—'}</td>
-        <td><button class="btn cd-lock" data-id="${l.id}" data-val="${canEdit?0:1}">${canEdit?'Can edit':'View-only'}</button></td>
-        <td><button class="btn cd-active" data-id="${l.id}" data-val="${isActive?0:1}" title="Toggle active">${isActive?'✓ Active':'Inactive'}</button></td>
+        <td><select class="cd-sel cd-prog" data-id="${uid}">${progOpts}</select></td>
+        <td>${esc((l.accepted_at||l.created_at||'').slice(0,10)) || '—'}</td>
+        <td><select class="cd-sel cd-lock-sel" data-id="${l.id}"><option value="1"${canEdit?' selected':''}>Can edit</option><option value="0"${!canEdit?' selected':''}>View-only</option></select></td>
+        <td><select class="cd-sel cd-active-sel" data-id="${l.id}"><option value="1"${isActive?' selected':''}>Active</option><option value="0"${!isActive?' selected':''}>Inactive</option></select></td>
         <td><button class="cd-add" title="New program for ${esc(nm)}" data-id="${uid}" data-name="${esc(nm)}">+</button></td>
         <td><div class="cd-actions">
           <button class="btn cd-view" data-id="${uid}" data-name="${esc(nm)}">View</button>
-          <button class="btn cd-assign" data-id="${uid}" data-name="${esc(nm)}">Assign</button>
         </div></td>
       </tr>
       <tr class="cd-detail" id="cd-detail-${uid}" style="display:none"><td colspan="8">
@@ -4929,7 +4928,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
         <td><strong>${esc(p.name)}</strong></td>
         <td><input type="date" class="cd-startdate" data-id="${esc(p.id)}" value="${esc(p.start_date||'')}" title="Aligns all trainees on this program"></td>
         <td>${n}</td>
-        <td><button class="btn cd-gen-toggle" data-id="${esc(p.id)}" data-val="${p.is_generic?0:1}">${p.is_generic?'Generic ✓':'Personal'}</button></td>
+        <td><select class="cd-sel cd-gen-sel" data-id="${esc(p.id)}"><option value="0"${!p.is_generic?' selected':''}>Personal</option><option value="1"${p.is_generic?' selected':''}>Generic</option></select></td>
         <td><div class="cd-actions">
           <button class="btn cd-edit-prog" data-id="${esc(p.id)}">Edit</button>
           <button class="btn cd-dup-prog" data-id="${esc(p.id)}">Duplicate</button>
@@ -4975,9 +4974,9 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       catch(e){ alert('Could not duplicate: ' + (e.message||e)); b.disabled=false; b.textContent='Duplicate'; }
     }));
     body.querySelectorAll('.cd-pdf-prog').forEach(b => b.addEventListener('click', () => printProgramPdf(b.dataset.id, b.dataset.name)));
-    body.querySelectorAll('.cd-gen-toggle').forEach(b => b.addEventListener('click', async () => {
-      const root = b.dataset.id;  // apply to the master AND all trainee copies
-      await sb.from('programs').update({ is_generic: b.dataset.val==='1' }).or(`id.eq.${root},template_id.eq.${root}`);
+    body.querySelectorAll('.cd-gen-sel').forEach(sel => sel.addEventListener('change', async () => {
+      const root = sel.dataset.id;  // apply to the master AND all trainee copies
+      await sb.from('programs').update({ is_generic: sel.value==='1' }).or(`id.eq.${root},template_id.eq.${root}`);
       renderCoachDashboard();
     }));
     // expand/collapse trainee details
@@ -5057,13 +5056,11 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       await viewUserData(b.dataset.id, b.dataset.name);
       closeCoachDashboard();
     }));
-    body.querySelectorAll('.cd-assign').forEach(b => b.addEventListener('click', () => openAssignModal(b.dataset.id, b.dataset.name)));
-    body.querySelectorAll('.cd-lock').forEach(b => b.addEventListener('click', async () => {
-      await sb.from('crossfit_coach_links').update({ trainee_can_edit: b.dataset.val==='1' }).eq('id', b.dataset.id);
-      renderCoachDashboard();
+    body.querySelectorAll('.cd-lock-sel').forEach(sel => sel.addEventListener('change', async () => {
+      await sb.from('crossfit_coach_links').update({ trainee_can_edit: sel.value==='1' }).eq('id', sel.dataset.id);
     }));
-    body.querySelectorAll('.cd-active').forEach(b => b.addEventListener('click', async () => {
-      await sb.from('crossfit_coach_links').update({ status: b.dataset.val==='1' ? 'active' : 'inactive' }).eq('id', b.dataset.id);
+    body.querySelectorAll('.cd-active-sel').forEach(sel => sel.addEventListener('change', async () => {
+      await sb.from('crossfit_coach_links').update({ status: sel.value==='1' ? 'active' : 'inactive' }).eq('id', sel.dataset.id);
       renderCoachDashboard();
     }));
   }
