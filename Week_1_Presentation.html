@@ -3035,9 +3035,23 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
 
   /* ============ TIMERS ============ */
   let audioCtx = null;
-  function ensureAudio(){ try { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === 'suspended') audioCtx.resume(); } catch {} }
+  function ensureAudio(){
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      // iOS/Safari unlock: play a 1-sample silent buffer inside the user gesture
+      if (audioCtx && !ensureAudio._unlocked){
+        const buf = audioCtx.createBuffer(1, 1, 22050);
+        const src = audioCtx.createBufferSource();
+        src.buffer = buf; src.connect(audioCtx.destination); src.start(0);
+        ensureAudio._unlocked = true;
+      }
+    } catch {}
+  }
   function beep(freq=660, duration=0.15, type='sine', vol=0.25){
+    try { if (!audioCtx) ensureAudio(); } catch {}
     if (!audioCtx) return;
+    if (audioCtx.state === 'suspended'){ try { audioCtx.resume(); } catch {} }
     const t = audioCtx.currentTime;
     const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
     osc.type = type; osc.frequency.value = freq;
@@ -3069,6 +3083,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     }
   }
   document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible' && audioCtx && audioCtx.state === 'suspended'){ try { audioCtx.resume(); } catch {} }
     if (document.visibilityState === 'visible' && activeTimerCount > 0 && !wakeLock){
       try {
         if ('wakeLock' in navigator){
@@ -3123,10 +3138,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       if (mode === 'interval')  return (work + rest) * rounds;
       return Infinity;
     }
-    function handleBeeps(){
-      const sec = Math.floor(elapsed);
-      if (sec === lastSecond) return;
-      lastSecond = sec;
+    function beepsForSecond(sec){
       if (mode === 'countdown'){ const left = duration - sec; if (left===3||left===2||left===1) beep(440,.08,'sine',.22); }
       if (mode === 'emom'){
         const inI = sec % interval;
@@ -3143,6 +3155,14 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
         const phaseLeft = isWork ? (work - inR) : (cyc - inR);
         if (phaseLeft===3||phaseLeft===2||phaseLeft===1) beep(440,.08,'sine',.22);
       }
+    }
+    function handleBeeps(){
+      const sec = Math.floor(elapsed);
+      if (sec === lastSecond) return;
+      // Catch up seconds skipped by throttled/stalled frames so boundary beeps aren't lost
+      const from = Math.max(lastSecond + 1, sec - 3);
+      lastSecond = sec;
+      for (let s = from; s <= sec; s++) beepsForSecond(s);
     }
     function render(){
       const sec = elapsed;
@@ -3173,20 +3193,22 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       const tot = total();
       if (tot !== Infinity && elapsed >= tot){
         elapsed = tot; running = false;
+        if (raf){ clearInterval(raf); raf = null; }
         el.classList.remove('running','rest-phase'); el.classList.add('done');
         dom.play.innerHTML = PLAY; handleBeeps(); render();
         beep(880,.45,'sine',.3); setTimeout(()=>beep(1320,.5,'sine',.3), 200);
         if (hasWakeLock){ hasWakeLock = false; releaseWakeLock(); }
         return;
       }
-      handleBeeps(); render(); raf = requestAnimationFrame(tick);
+      handleBeeps(); render();
     }
     function startNow(){
       running = true;
       el.classList.add('running');
       dom.play.innerHTML = PAUSE;
       lastTickMs = performance.now();
-      raf = requestAnimationFrame(tick);
+      if (raf) clearInterval(raf);
+      raf = setInterval(tick, 100); // interval instead of rAF: keeps ticking (and beeping) when frames are throttled
       if (!hasWakeLock){ hasWakeLock = true; acquireWakeLock(); }
     }
     function toggle(){
@@ -3196,7 +3218,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
         running = false;
         el.classList.remove('running');
         dom.play.innerHTML = PLAY;
-        if (raf) cancelAnimationFrame(raf);
+        if (raf){ clearInterval(raf); raf = null; }
         if (hasWakeLock){ hasWakeLock = false; releaseWakeLock(); }
       } else {
         if (elapsed < 0.1) runCountdown(() => startNow());
@@ -3204,7 +3226,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       }
     }
     function reset(){
-      if (raf) cancelAnimationFrame(raf);
+      if (raf){ clearInterval(raf); raf = null; }
       running = false; elapsed = 0; lastSecond = -1;
       el.classList.remove('running','done','rest-phase');
       dom.play.innerHTML = PLAY; render();
@@ -3266,7 +3288,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     close(){
       if (this.running){
         this.running = false;
-        if (this.raf) cancelAnimationFrame(this.raf);
+        if (this.raf){ clearInterval(this.raf); this.raf = null; }
         if (this.hasLock){ this.hasLock = false; releaseWakeLock(); }
       }
       this.el.classList.remove('open'); this.mini.classList.remove('open');
@@ -3288,7 +3310,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       if (this.running){
         this.running = false;
         this.dom.playBtn.innerHTML = PLAY_BIG;
-        if (this.raf) cancelAnimationFrame(this.raf);
+        if (this.raf){ clearInterval(this.raf); this.raf = null; }
         if (this.hasLock){ this.hasLock = false; releaseWakeLock(); }
       } else {
         if (this.elapsed < 0.1) runCountdown(() => this._startInternal());
@@ -3299,21 +3321,19 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       this.running = true;
       this.dom.playBtn.innerHTML = PAUSE_BIG;
       this.lastTickMs = performance.now();
-      this.raf = requestAnimationFrame(() => this.tick());
+      if (this.raf) clearInterval(this.raf);
+      this.raf = setInterval(() => this.tick(), 100);
       if (!this.hasLock){ this.hasLock = true; acquireWakeLock(); }
     }
     reset(){
-      if (this.raf) cancelAnimationFrame(this.raf);
+      if (this.raf){ clearInterval(this.raf); this.raf = null; }
       this.running = false; this.elapsed = 0; this.lastSecond = -1;
       this.el.classList.remove('rest-phase','done');
       this.dom.playBtn.innerHTML = PLAY_BIG;
       this.render();
       if (this.hasLock){ this.hasLock = false; releaseWakeLock(); }
     }
-    handleBeeps(){
-      const sec = Math.floor(this.elapsed);
-      if (sec === this.lastSecond) return;
-      this.lastSecond = sec;
+    beepsForSecond(sec){
       const c = this.config;
       if (c.mode === 'countdown'){ const left = c.duration - sec; if (left===3||left===2||left===1) beep(440,.12,'sine',.32); }
       if (c.mode === 'emom'){
@@ -3332,6 +3352,13 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
         if (phaseLeft===3||phaseLeft===2||phaseLeft===1) beep(440,.12,'sine',.32);
       }
     }
+    handleBeeps(){
+      const sec = Math.floor(this.elapsed);
+      if (sec === this.lastSecond) return;
+      const from = Math.max(this.lastSecond + 1, sec - 3);
+      this.lastSecond = sec;
+      for (let s = from; s <= sec; s++) this.beepsForSecond(s);
+    }
     tick(){
       if (!this.running) return;
       const now = performance.now();
@@ -3340,6 +3367,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       const tot = this.total();
       if (tot !== Infinity && this.elapsed >= tot){
         this.elapsed = tot; this.running = false;
+        if (this.raf){ clearInterval(this.raf); this.raf = null; }
         this.el.classList.remove('rest-phase'); this.el.classList.add('done');
         this.handleBeeps(); this.render();
         beep(880,.5,'sine',.4); setTimeout(()=>beep(1320,.6,'sine',.4), 200);
@@ -3348,7 +3376,6 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
         return;
       }
       this.handleBeeps(); this.render();
-      this.raf = requestAnimationFrame(() => this.tick());
     }
     render(){
       const c = this.config; if (!c) return;
