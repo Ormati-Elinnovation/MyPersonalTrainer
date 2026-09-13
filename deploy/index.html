@@ -170,6 +170,10 @@
   .cal-day .num{font-size:22px;font-weight:800;color:var(--ink);font-family:'Space Grotesk';line-height:1.1}
   .cal-day .ind{margin-top:auto;width:5px;height:5px;border-radius:50%;background:var(--blue);box-shadow:0 0 8px var(--glow);opacity:0;transition:opacity .2s}
   .cal-day.has-workouts .ind{opacity:1}
+  .cal-extra-dots{position:absolute;top:6px;right:6px;display:flex;gap:3px}
+  .cal-extra-dot{width:6px;height:6px;border-radius:50%;display:inline-block}
+  .cal-extra-dot.sauna{background:var(--danger)}
+  .cal-extra-dot.ice{background:var(--cyan)}
   .cal-day.today{border-color:var(--blue);background:linear-gradient(180deg,rgba(167,200,234,.18),var(--panel))}
   .cal-day.today .num{color:var(--blue-3)}
   .cal-day.selected{background:linear-gradient(135deg,var(--blue),var(--primary));border-color:transparent;box-shadow:0 6px 20px var(--glow)}
@@ -2561,7 +2565,9 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       const d = parseKey(k);
       const has = PROGRAM[k] && PROGRAM[k].length > 0;
       const cls = [has ? 'has-workouts' : '', k === today ? 'today' : '', k === selectedKey ? 'selected' : ''].filter(Boolean).join(' ');
-      html += `<div class="cal-day ${cls}" data-key="${k}"><div class="dow">${DOWS_SHORT[d.getDay()]}</div><div class="num">${d.getDate()}</div><div class="ind"></div></div>`;
+      const dayExtra = tkDataByDate(k);
+      const extraDots = `${dayExtra.sauna ? '<span class="cal-extra-dot sauna"></span>' : ''}${dayExtra.ice ? '<span class="cal-extra-dot ice"></span>' : ''}`;
+      html += `<div class="cal-day ${cls}" data-key="${k}"><div class="dow">${DOWS_SHORT[d.getDay()]}</div><div class="num">${d.getDate()}</div><div class="ind"></div>${extraDots ? `<div class="cal-extra-dots">${extraDots}</div>` : ''}</div>`;
     }
     strip.innerHTML = html;
     strip.querySelectorAll('.cal-day').forEach(el => {
@@ -2609,9 +2615,10 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const weekEndK = addDays(weekStart, 6);
     const weekBlocks = all.filter(b => b.date >= weekStart && b.date <= weekEndK);
     const weekDone = weekBlocks.filter(b => tkData[b.id]?.done).length;
-
     const todayBlocks = all.filter(b => b.date === today);
     const todayDone = todayBlocks.filter(b => tkData[b.id]?.done).length;
+
+
 
     // Streak: consecutive past days (incl. today if any done) where every block is done
     let streak = 0;
@@ -2641,6 +2648,15 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     }
     if (lead && prog?.description){ lead.textContent = prog.description; }
 
+    const weekDateKeys = [];
+    for (let i = 0; i < 7; i++) weekDateKeys.push(addDays(weekStart, i));
+    const saunaIce = weekDateKeys.reduce((acc, k) => {
+      const s = tkDataByDate(k);
+      if (s.sauna) acc.sauna++;
+      if (s.ice) acc.ice++;
+      return acc;
+    }, { sauna: 0, ice: 0 });
+
     stats.innerHTML = `
       <div class="stat ${weekDone === weekBlocks.length && weekBlocks.length ? 'good' : ''}">
         <div class="k">This Week</div><div class="v">${weekDone}<small>/ ${weekBlocks.length}</small></div>
@@ -2653,17 +2669,14 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       </div>
       <div class="stat ${streak >= 3 ? 'good' : ''}">
         <div class="k">Streak</div><div class="v">${streak}<small>day${streak === 1 ? '' : 's'}</small></div>
+      </div>
+      <div class="stat">
+        <div class="k">Sauna / Ice</div><div class="v"><span style="color:var(--danger)">${saunaIce.sauna}</span><small> / </small><span style="color:var(--cyan)">${saunaIce.ice}</span></div>
       </div>`;
 
     if (hpFill) hpFill.style.width = pct + '%';
     if (hpMeta){
-      const saunaIce = weekBlocks.reduce((acc, b) => {
-        const s = tkData[b.id] || {};
-        if (s.sauna) acc.sauna++;
-        if (s.ice) acc.ice++;
-        return acc;
-      }, { sauna: 0, ice: 0 });
-      hpMeta.innerHTML = `<span><strong>${done}</strong> of ${total} blocks done</span><span>Today: <strong>${todayDone}/${todayBlocks.length}</strong></span><span>Sauna: <strong>${saunaIce.sauna}</strong> · Ice: <strong>${saunaIce.ice}</strong></span>`;
+      hpMeta.innerHTML = `<span><strong>${done}</strong> of ${total} blocks done</span><span>Today: <strong>${todayDone}/${todayBlocks.length}</strong></span>`;
     }
   }
 
