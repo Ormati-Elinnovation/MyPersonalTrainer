@@ -555,6 +555,14 @@
   .summary-card .v strong{color:var(--ink)}
   .summary-card .v em{font-style:normal;color:var(--blue-2)}
   .summary-card.full{grid-column:1/-1}
+  .pr-wrap{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+  .pr-empty{color:var(--muted);font-size:13px;padding:14px 4px}
+  .pr-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px;min-width:0}
+  .pr-card .pr-name{font-size:12px;font-weight:700;color:var(--ink);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pr-card .pr-val{font-size:18px;font-weight:800;color:var(--blue-3);font-family:'Space Grotesk'}
+  .pr-card .pr-date{font-size:11px;color:var(--muted);margin-top:2px}
+  .reminder-toggle{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-soft);cursor:pointer;user-select:none}
+  .reminder-toggle input{accent-color:var(--blue-3)}
   .charts-wrap{display:none}
   .charts-wrap h3{margin:0;font-size:20px;font-weight:800;letter-spacing:-.3px;color:var(--ink)}
   .charts-wrap .lead{margin:6px 0 16px;color:var(--ink-soft);font-size:14px;max-width:680px}
@@ -985,6 +993,12 @@
   <section class="weekly-table reveal" id="weeklyTable"></section>
 
   <div class="section-head reveal" style="margin-top:24px">
+    <h3>Recent Bests</h3>
+    <span class="sub">Auto-detected from your logged workout results</span>
+  </div>
+  <section class="pr-wrap reveal" id="prSection"></section>
+
+  <div class="section-head reveal" style="margin-top:24px">
     <h3>Critical Focus</h3>
     <span class="sub">Monthly Priorities</span>
   </div>
@@ -1199,6 +1213,19 @@
           <div style="display:flex;gap:8px;flex-shrink:0">
             <button id="soundTestBtn">Test</button>
             <button id="soundModeBtn" class="primary">On</button>
+          </div>
+        </div>
+        <div class="setting-row" style="flex-direction:column;align-items:stretch;gap:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+            <div>
+              <div class="label">Workout reminder</div>
+              <div class="sub" id="reminderSub">Get a browser notification if today's workout isn't marked done by your chosen time.</div>
+            </div>
+            <button id="reminderToggleBtn">Enable</button>
+          </div>
+          <div id="reminderTimeRow" style="display:none;align-items:center;gap:8px">
+            <label class="sub" style="margin:0">Remind me at</label>
+            <input type="time" id="reminderTimeInput" value="18:00" style="background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:7px 10px;color:var(--ink);font-family:'Inter';font-size:13px;outline:none">
           </div>
         </div>
         <div class="setting-row" style="flex-direction:column;align-items:stretch;gap:8px">
@@ -2587,6 +2614,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
 
   function renderCalendar(){
     renderHeroStats();
+    renderPRs();
     document.getElementById('calRange').textContent = fmtRange(weekStart);
     const strip = document.getElementById('calStrip');
     const today = todayKey();
@@ -2709,6 +2737,40 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     if (hpMeta){
       hpMeta.innerHTML = `<span><strong>${done}</strong> of ${total} blocks done</span><span>Today: <strong>${todayDone}/${todayBlocks.length}</strong></span>`;
     }
+  }
+
+  function renderPRs(){
+    const wrap = document.getElementById('prSection');
+    if (!wrap) return;
+    const best = {}; // name -> { val, dir, raw, date }
+    Object.entries(PROGRAM).forEach(([date, blocks]) => {
+      (blocks || []).forEach(b => {
+        const state = tkData[b.id];
+        const results = state && Array.isArray(state.results) ? state.results : [];
+        if (!results.length) return;
+        const name = tName(b) || 'Workout';
+        const scoreType = b.score_type || inferScoreType(b);
+        const dir = b.score_dir || (scoreType === 'time' ? 'low' : 'high');
+        results.forEach(r => {
+          const val = parseScore(r);
+          if (val == null) return;
+          const cur = best[name];
+          const better = !cur || (dir === 'low' ? val < cur.val : val > cur.val);
+          if (better) best[name] = { val, dir, raw: r, date, scoreType };
+        });
+      });
+    });
+    const items = Object.entries(best).sort((a,b) => new Date(b[1].date) - new Date(a[1].date)).slice(0, 12);
+    if (!items.length){
+      wrap.innerHTML = `<div class="pr-empty">Log results on your workouts (weight, time, or reps) and your personal bests will show up here.</div>`;
+      return;
+    }
+    wrap.innerHTML = items.map(([name, r]) => `
+      <div class="pr-card">
+        <div class="pr-name">${esc(name)}</div>
+        <div class="pr-val">${esc(r.raw)}</div>
+        <div class="pr-date">${esc(fmtDateShort(r.date))}</div>
+      </div>`).join('');
   }
 
   function renderDayDetail(){
@@ -3202,6 +3264,63 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     warnBeep(); setTimeout(warnBeep, 450); setTimeout(warnBeep, 900);
   });
   renderSoundSetting();
+
+  /* ============ WORKOUT REMINDER (browser notification) ============ */
+  const REMINDER_KEY = 'crossfit_reminder';
+  function reminderSettings(){
+    try { return JSON.parse(localStorage.getItem(REMINDER_KEY) || 'null') || { enabled:false, time:'18:00', lastFired:null }; }
+    catch { return { enabled:false, time:'18:00', lastFired:null }; }
+  }
+  function saveReminderSettings(s){ try { localStorage.setItem(REMINDER_KEY, JSON.stringify(s)); } catch {} }
+  function renderReminderSetting(){
+    const btn = document.getElementById('reminderToggleBtn');
+    const timeRow = document.getElementById('reminderTimeRow');
+    const timeInput = document.getElementById('reminderTimeInput');
+    if (!btn) return;
+    const s = reminderSettings();
+    btn.textContent = s.enabled ? 'Disable' : 'Enable';
+    btn.classList.toggle('primary', !s.enabled);
+    if (timeRow) timeRow.style.display = s.enabled ? 'flex' : 'none';
+    if (timeInput) timeInput.value = s.time || '18:00';
+  }
+  document.getElementById('reminderToggleBtn')?.addEventListener('click', async () => {
+    const s = reminderSettings();
+    if (!s.enabled){
+      if (typeof Notification !== 'undefined' && Notification.permission !== 'granted'){
+        const perm = await Notification.requestPermission();
+        if (perm !== 'granted'){ alert('Notifications were blocked. Enable them in your browser/site settings to use reminders.'); return; }
+      }
+      s.enabled = true;
+    } else {
+      s.enabled = false;
+    }
+    saveReminderSettings(s); renderReminderSetting();
+  });
+  document.getElementById('reminderTimeInput')?.addEventListener('change', (e) => {
+    const s = reminderSettings(); s.time = e.target.value || '18:00'; saveReminderSettings(s);
+  });
+  renderReminderSetting();
+  function checkWorkoutReminder(){
+    const s = reminderSettings();
+    if (!s.enabled) return;
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    const now = new Date();
+    const todayStr = todayKey();
+    if (s.lastFired === todayStr) return; // already fired today
+    const [hh, mm] = (s.time || '18:00').split(':').map(n => parseInt(n,10)||0);
+    const target = new Date(now); target.setHours(hh, mm, 0, 0);
+    if (now < target) return; // not time yet
+    const blocks = PROGRAM[todayStr] || [];
+    if (!blocks.length) return; // nothing scheduled today
+    const { done, total } = countDoneForDate(todayStr);
+    if (total && done === total) { s.lastFired = todayStr; saveReminderSettings(s); return; } // already finished
+    try {
+      new Notification('Workout reminder', { body: `You have ${total - done} workout${total-done===1?'':'s'} left today. Don't lose the streak!`, tag: 'crossfit-reminder' });
+    } catch {}
+    s.lastFired = todayStr; saveReminderSettings(s);
+  }
+  setInterval(checkWorkoutReminder, 5 * 60 * 1000);
+  setTimeout(checkWorkoutReminder, 4000);
   const PLAY  = '<svg viewBox="0 0 24 24"><use href="#i-play"/></svg>';
   const PAUSE = '<svg viewBox="0 0 24 24"><use href="#i-pause"/></svg>';
 
