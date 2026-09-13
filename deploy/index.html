@@ -542,8 +542,20 @@
   .section-head{display:flex;align-items:end;justify-content:space-between;gap:14px;margin:30px 4px 14px;flex-wrap:wrap}
   .section-head h3{margin:0;font-size:22px;font-weight:800;letter-spacing:-.3px;color:var(--ink)}
   .section-head .sub{color:var(--muted);font-size:12.5px;letter-spacing:1.4px;text-transform:uppercase;font-family:'Space Grotesk'}
-  .charts-wrap{position:relative;border:1px solid var(--line);border-radius:22px;background:linear-gradient(160deg,var(--panel-2),var(--panel));padding:24px;overflow:hidden}
-  .charts-wrap::before{content:"";position:absolute;width:300px;height:300px;border-radius:50%;background:radial-gradient(circle,var(--blue) 0%,transparent 70%);top:-100px;left:-100px;opacity:.18;filter:blur(20px);pointer-events:none}
+  .summary-wrap{position:relative;border:1px solid var(--line);border-radius:22px;background:linear-gradient(160deg,var(--panel-2),var(--panel));padding:24px;overflow:hidden}
+  .summary-wrap::before{content:"";position:absolute;width:300px;height:300px;border-radius:50%;background:radial-gradient(circle,var(--blue) 0%,transparent 70%);top:-100px;left:-100px;opacity:.18;filter:blur(20px);pointer-events:none}
+  .daily-summary-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}
+  .daily-summary-head h3{margin:0;font-size:20px;font-weight:800;letter-spacing:-.3px;color:var(--ink)}
+  .daily-summary-head p{margin:6px 0 0;color:var(--ink-soft);font-size:14px;max-width:680px}
+  .daily-summary-pill{display:inline-flex;align-items:center;justify-content:center;padding:7px 12px;border-radius:999px;background:var(--panel);border:1px solid var(--line);font-family:'Space Grotesk';font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:var(--blue-2);font-weight:700;white-space:nowrap}
+  .daily-summary-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px}
+  .summary-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 16px;min-width:0}
+  .summary-card .k{font-family:'Space Grotesk';font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:6px}
+  .summary-card .v{font-size:14px;line-height:1.6;color:var(--ink-soft);font-weight:500;white-space:pre-wrap}
+  .summary-card .v strong{color:var(--ink)}
+  .summary-card .v em{font-style:normal;color:var(--blue-2)}
+  .summary-card.full{grid-column:1/-1}
+  .charts-wrap{display:none}
   .charts-wrap h3{margin:0;font-size:20px;font-weight:800;letter-spacing:-.3px;color:var(--ink)}
   .charts-wrap .lead{margin:6px 0 16px;color:var(--ink-soft);font-size:14px;max-width:680px}
   .charts{display:grid;grid-template-columns:1fr 1fr;gap:14px}
@@ -822,6 +834,7 @@
   @media (max-width:680px){
     html,body{overflow-x:clip}
     main{padding:18px 14px 60px}
+    .daily-summary-grid{grid-template-columns:1fr}
     .day-extras{padding:14px 16px 18px;grid-template-columns:1fr}
     .day-extra-btn,.tk-extra{width:100%;justify-content:center}
     .topbar .inner{padding:10px 14px}
@@ -972,23 +985,22 @@
   <section class="weekly-table reveal" id="weeklyTable"></section>
 
   <div class="section-head reveal" style="margin-top:28px">
-    <h3>Program Analytics</h3>
-    <span class="sub">4-Week Comparison</span>
+    <h3>Daily Summary</h3>
+    <span class="sub">What mattered today</span>
   </div>
-  <section class="charts-wrap reveal" id="charts">
-    <h3>Volume &amp; Weight Across Weeks</h3>
-    <p class="lead">Maximum weight per day and estimated training volume. Watch the curve climb to Week 3 (peak) and drop in Week 4 (taper).</p>
-    <div class="charts">
-      <div class="chart-card">
-        <h4>Top Weight by Day (RX, men)</h4>
-        <p class="chart-sub">Kilograms</p>
-        <div class="chart-box"><canvas id="weightsChart"></canvas></div>
+  <section class="summary-wrap reveal" id="dailySummary">
+    <div class="daily-summary-head">
+      <div>
+        <h3 id="dailySummaryTitle">Today</h3>
+        <p id="dailySummarySub">A short readout of the important work you did today.</p>
       </div>
-      <div class="chart-card">
-        <h4>Training Volume by Day</h4>
-        <p class="chart-sub">Estimated reps</p>
-        <div class="chart-box"><canvas id="volumeChart"></canvas></div>
-      </div>
+      <div class="daily-summary-pill" id="dailySummaryPill">—</div>
+    </div>
+    <div class="daily-summary-grid">
+      <div class="summary-card"><div class="k">What you did well</div><div class="v" id="summaryWins">—</div></div>
+      <div class="summary-card"><div class="k">Focus next</div><div class="v" id="summaryFocus">—</div></div>
+      <div class="summary-card"><div class="k">Energy / recovery</div><div class="v" id="summaryRecovery">—</div></div>
+      <div class="summary-card"><div class="k">Encouragement</div><div class="v" id="summaryQuote">—</div></div>
     </div>
   </section>
 
@@ -2729,6 +2741,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const detail = document.getElementById('dayDetail');
     const dayState = tkDataByDate(selectedKey);
     let progressBadge = '';
+    const daySummary = buildDailySummary(selectedKey, blocks, dayState, done, total, ended);
     if (ended) progressBadge = `<div class="day-progress complete"><span class="dot"></span>Day Ended · ${done} / ${total}</div>`;
     else if (total) progressBadge = `<div class="day-progress ${allDone ? 'complete' : ''}"><span class="dot"></span>${done} / ${total} completed</div>`;
     let finishBtn = '';
@@ -2755,6 +2768,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       </div>
       ${total ? `<div class="day-extras"><button class="day-extra-btn sauna-btn ${dayState.sauna ? 'active' : ''}" data-extra="sauna">Sauna</button><button class="day-extra-btn ice-btn ${dayState.ice ? 'active' : ''}" data-extra="ice">Ice</button></div>` : ''}
       <div class="day-body">
+        ${daySummary}
         ${blocks.length ? `<div class="blocks" id="blocksContainer"></div>` : `
           <div class="empty-state">
             <h3>No workouts on this day</h3>
@@ -3659,6 +3673,29 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       if (s.ice) out.ice = true;
     });
     return out;
+  }
+
+  function buildDailySummary(dateKey, blocks, dayState, done, total, ended){
+    const workoutNames = (blocks || []).slice(0, 3).map(b => b.name).filter(Boolean);
+    const focusAreas = (blocks || []).map(b => b.cat).filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i).slice(0, 3);
+    const saunaIce = [dayState.sauna ? 'Sauna' : null, dayState.ice ? 'Ice' : null].filter(Boolean);
+    const progressText = total ? `${done}/${total} workouts completed` : 'No workout blocks today';
+    const statusText = ended ? 'Day archived' : (total && done === total ? 'Clean sweep' : 'Keep building');
+    const wins = workoutNames.length ? `• ${workoutNames.join('\n• ')}` : '• Show up and stay consistent';
+    const focus = focusAreas.length ? `• ${focusAreas.join(' · ')}\n• Keep technique crisp and avoid rushing the reps` : '• Keep the next session simple, sharp, and on time';
+    const recovery = saunaIce.length ? `• Recovery work logged: ${saunaIce.join(' · ')}\n• Nice job keeping the body cared for` : '• Recovery still matters: hydration, sleep, mobility';
+    const quote = total && done > 0
+      ? '“Small wins stacked every day become big results.”'
+      : '“Consistency is the real superpower.”';
+    return `
+      <div class="summary-card full">
+        <div class="k">Today at a glance</div>
+        <div class="v"><strong>${statusText}</strong> — ${progressText}</div>
+      </div>
+      <div class="summary-card"><div class="k">What you did well</div><div class="v">${wins}</div></div>
+      <div class="summary-card"><div class="k">Where to put the focus</div><div class="v">${focus}</div></div>
+      <div class="summary-card"><div class="k">Recovery / extras</div><div class="v">${recovery}</div></div>
+      <div class="summary-card full"><div class="k">Encouragement</div><div class="v"><em>${quote}</em></div></div>`;
   }
 
   async function saveDayExtras(dateKey, state){
