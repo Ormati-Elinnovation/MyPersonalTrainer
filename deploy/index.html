@@ -2701,7 +2701,6 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
           </div>
         </div>
       </div>
-      ${total ? `<div class="day-extras"><div class="day-extra-card"><div class="day-extra-head"><span class="day-extra-label">Sauna</span><span class="day-extra-pill sauna">Red</span></div><button class="day-extra-btn sauna-btn ${dayState.sauna ? 'active' : ''}" data-extra="sauna">Sauna</button></div><div class="day-extra-card"><div class="day-extra-head"><span class="day-extra-label">Ice</span><span class="day-extra-pill ice">Blue</span></div><button class="day-extra-btn ice-btn ${dayState.ice ? 'active' : ''}" data-extra="ice">Ice</button></div></div>` : ''}
       <div class="day-body">
         ${blocks.length ? `<div class="blocks" id="blocksContainer"></div>` : `
           <div class="empty-state">
@@ -2709,7 +2708,8 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
             <p>Add a workout to plan a session, or pick another day in the calendar.</p>
             <button id="emptyAddBtn"><svg style="width:14px;height:14px;vertical-align:-2px;margin-right:4px"><use href="#i-plus"/></svg> Add Workout</button>
           </div>`}
-      </div>`;
+      </div>
+      ${total ? `<div class="day-extras"><div class="day-extra-card"><div class="day-extra-head"><span class="day-extra-label">Sauna</span><span class="day-extra-pill sauna">Red</span></div><button class="day-extra-btn sauna-btn ${dayState.sauna ? 'active' : ''}" data-extra="sauna">Sauna</button></div><div class="day-extra-card"><div class="day-extra-head"><span class="day-extra-label">Ice</span><span class="day-extra-pill ice">Blue</span></div><button class="day-extra-btn ice-btn ${dayState.ice ? 'active' : ''}" data-extra="ice">Ice</button></div></div>` : ''}`;
     document.getElementById('addBlockBtn').addEventListener('click', () => openModal(null));
     const emptyBtn = document.getElementById('emptyAddBtn');
     if (emptyBtn) emptyBtn.addEventListener('click', () => openModal(null));
