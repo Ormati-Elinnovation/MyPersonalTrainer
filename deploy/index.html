@@ -2,7 +2,7 @@
 <html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>4-Week CrossFit Program</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -68,11 +68,11 @@
     --modal-overlay:rgba(20,40,80,.55);
   }
   *{box-sizing:border-box}
-  html,body{margin:0;padding:0;width:100%;overflow-x:clip}
+  html,body{margin:0;padding:0;width:100%;overflow-x:clip;overscroll-behavior-y:none;overscroll-behavior-x:none}
   body{font-family:'Inter',system-ui,-apple-system,sans-serif;color:var(--ink);background:var(--bg);min-height:100vh;line-height:1.55;-webkit-font-smoothing:antialiased;transition:background .35s,color .35s}
   img,video,canvas,svg{max-width:100%;height:auto}
-  .mesh{position:fixed;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(60% 50% at 85% -10%,var(--mesh-1),transparent 60%),radial-gradient(45% 40% at 10% 10%,var(--mesh-2),transparent 60%),radial-gradient(50% 40% at 50% 110%,var(--mesh-3),transparent 60%),var(--mesh-base);transition:background .35s}
-  .grid-overlay{position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.35;background-image:linear-gradient(var(--grid-line) 1px,transparent 1px),linear-gradient(90deg,var(--grid-line) 1px,transparent 1px);background-size:56px 56px;mask-image:radial-gradient(ellipse at 50% 0%,#000 30%,transparent 75%)}
+  .mesh{position:fixed;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(60% 50% at 85% -10%,var(--mesh-1),transparent 60%),radial-gradient(45% 40% at 10% 10%,var(--mesh-2),transparent 60%),radial-gradient(50% 40% at 50% 110%,var(--mesh-3),transparent 60%),var(--mesh-base);transition:background .35s;transform:translateZ(0);will-change:transform;backface-visibility:hidden}
+  .grid-overlay{position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.35;background-image:linear-gradient(var(--grid-line) 1px,transparent 1px),linear-gradient(90deg,var(--grid-line) 1px,transparent 1px);background-size:56px 56px;mask-image:radial-gradient(ellipse at 50% 0%,#000 30%,transparent 75%);transform:translateZ(0);will-change:transform;backface-visibility:hidden}
 
   /* AUTH SCREEN */
   .auth-screen{
