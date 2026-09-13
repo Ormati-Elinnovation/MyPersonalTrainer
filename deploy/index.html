@@ -39,6 +39,7 @@
     --blue:#a7c8ea; --blue-2:#c7dcf2; --blue-3:#d8e8f7; --cyan:#88d4e8;
     --primary:#6fa8e0; --glow:rgba(111,168,224,.55);
     --rest:#f3c8d8; --rest-2:#e8a8c4; --good:#b4e0c1;
+    --swim:#c3aef0; --swim-tint:rgba(195,174,240,.10); --swim-line:rgba(195,174,240,.40);
     --danger:#e57b8e; --danger-2:#c95066;
     --shadow-1:0 8px 24px rgba(0,0,0,.35);
     --mesh-1:rgba(111,168,224,.28); --mesh-2:rgba(136,212,232,.18); --mesh-3:rgba(167,200,234,.22);
@@ -56,6 +57,7 @@
     --blue:#5a8fc7; --blue-2:#4a7bb4; --blue-3:#2e5a8f; --cyan:#4aa6c2;
     --primary:#3b78b8; --glow:rgba(90,143,199,.35);
     --rest:#c66e93; --rest-2:#b25478; --good:#5fa97a;
+    --swim:#6d4fbe; --swim-tint:rgba(109,79,190,.09); --swim-line:rgba(109,79,190,.32);
     --danger:#c95066; --danger-2:#a83855;
     --shadow-1:0 8px 24px rgba(56,98,160,.18);
     --mesh-1:rgba(167,200,234,.5); --mesh-2:rgba(136,212,232,.35); --mesh-3:rgba(199,220,242,.5);
@@ -242,6 +244,11 @@
   .block h4{margin:0 0 4px;font-size:12.5px;color:var(--blue-2);letter-spacing:1.2px;text-transform:uppercase;font-family:'Space Grotesk';font-weight:600}
   .block .name{font-size:17px;font-weight:700;color:var(--ink);margin-bottom:8px}
   .block .body{white-space:pre-wrap;font-size:14px;line-height:1.7;color:var(--ink-soft);flex:1;word-break:break-word}
+  /* per-category card tint */
+  .block.cat-swim{border-color:var(--swim-line);background:linear-gradient(180deg,var(--swim-tint),var(--panel))}
+  .block.cat-swim:hover{border-color:var(--swim)}
+  .block.cat-swim > .block-head > .icon{background:var(--swim-tint);border-color:var(--swim-line);color:var(--swim)}
+  .block.cat-swim h4{color:var(--swim)}
   .body-link{
     color:var(--blue-2);text-decoration:underline;text-decoration-color:rgba(167,200,234,.4);
     text-underline-offset:2px;cursor:pointer;transition:color .15s
@@ -924,6 +931,7 @@
       <button class="icon-btn" id="searchBtn" aria-label="Search history">
         <svg><use href="#i-search"/></svg>
       </button>
+      <button class="icon-btn" id="langToggle" aria-label="Toggle program language" title="Program language" style="font-weight:800;font-size:13px;letter-spacing:.5px">EN</button>
       <button class="icon-btn theme-toggle" id="themeToggle" aria-label="Toggle theme">
         <svg class="moon"><use href="#i-moon"/></svg>
         <svg class="sun"><use href="#i-sun"/></svg>
@@ -1188,6 +1196,16 @@
             <div class="sub">Quick unlock on this device</div>
           </div>
           <button id="faceIdToggleBtn" class="primary">Enable</button>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="label">Timer sound</div>
+            <div class="sub" id="soundModeSub">3-2-1 beeps before every interval ends</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-shrink:0">
+            <button id="soundTestBtn">Test</button>
+            <button id="soundModeBtn" class="primary">On</button>
+          </div>
         </div>
         <div class="setting-row" style="flex-direction:column;align-items:stretch;gap:8px">
           <div>
@@ -1458,6 +1476,29 @@
   })();
   document.getElementById('themeToggle').addEventListener('click', () => {
     applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+  });
+
+  /* ============ PROGRAM LANGUAGE (English is the default) ============ */
+  // Workout text can carry an optional Hebrew translation (blocks.name_he / blocks.body_he).
+  // This toggle only switches the workout text — the app chrome stays English.
+  const LANG_KEY = 'crossfit-lang';
+  let LANG = 'en';
+  try { LANG = localStorage.getItem(LANG_KEY) === 'he' ? 'he' : 'en'; } catch {}
+  function tName(b){ return (LANG === 'he' && b && b.name_he) ? b.name_he : (b && b.name) || ''; }
+  function tBody(b){ return (LANG === 'he' && b && b.body_he) ? b.body_he : (b && b.body) || ''; }
+  function updateLangButton(){
+    const btn = document.getElementById('langToggle');
+    if (btn){
+      btn.textContent = LANG === 'he' ? 'עב' : 'EN';
+      btn.title = LANG === 'he' ? 'Workouts in Hebrew — switch to English' : 'Workouts in English — switch to Hebrew';
+    }
+  }
+  updateLangButton();
+  document.getElementById('langToggle').addEventListener('click', () => {
+    LANG = LANG === 'he' ? 'en' : 'he';
+    try { localStorage.setItem(LANG_KEY, LANG); } catch {}
+    updateLangButton();
+    try { renderCalendar(); renderDayDetail(); } catch {}   // renderCalendar also refreshes the weekly table
   });
 
   /* ============ DATE UTILITIES ============ */
@@ -1865,7 +1906,8 @@
         rows.push({
           id: uid(), user_id: activeUserId(), program_id: programId,
           date: newDate, icon: b.icon, cat: b.cat, name: b.name,
-          body: b.body || '', timer: b.timer || null, position: i
+          body: b.body || '', name_he: b.name_he || null, body_he: b.body_he || null,
+          timer: b.timer || null, position: i
         });
       });
     });
@@ -2294,7 +2336,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const program = {};
     data.forEach(b => {
       if (!program[b.date]) program[b.date] = [];
-      program[b.date].push({ id: b.id, icon: b.icon, cat: b.cat, name: b.name, body: b.body || '', timer: b.timer || null, origin_block_id: b.origin_block_id || null, score_type: b.score_type || null, score_dir: b.score_dir || null });
+      program[b.date].push({ id: b.id, icon: b.icon, cat: b.cat, name: b.name, body: b.body || '', name_he: b.name_he || null, body_he: b.body_he || null, timer: b.timer || null, origin_block_id: b.origin_block_id || null, score_type: b.score_type || null, score_dir: b.score_dir || null });
     });
     return program;
   }
@@ -2317,7 +2359,8 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const row = {
       id: block.id, user_id: activeUserId(), program_id: currentProgramId,
       date, icon: block.icon, cat: block.cat, name: block.name,
-      body: block.body || '', timer: block.timer || null, position, updated_at: new Date().toISOString(),
+      body: block.body || '', name_he: block.name_he || null, body_he: block.body_he || null,
+      timer: block.timer || null, position, updated_at: new Date().toISOString(),
       score_type: block.score_type || null, score_dir: block.score_dir || null
     };
     if (block.origin_block_id) row.origin_block_id = block.origin_block_id;
@@ -2482,7 +2525,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
   async function loadArchive(){
     const [trackerRes, blocksRes, finRes] = await Promise.all([
       sb.from('tracker').select('block_id, done, notes, results, updated_at').eq('user_id', activeUserId()),
-      sb.from('blocks').select('id, date, cat, name, icon, position').eq('user_id', activeUserId()).order('date').order('position'),
+      sb.from('blocks').select('id, date, cat, name, name_he, icon, position').eq('user_id', activeUserId()).order('date').order('position'),
       sb.from('day_finished').select('date, finished_at').eq('user_id', activeUserId())
     ]);
     if (trackerRes.error || blocksRes.error || finRes.error){
@@ -2501,7 +2544,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       if (!t.done && !finishedSet.has(b.date)) return; // skip days with no progress and not finished
       if (!byDate[b.date]) byDate[b.date] = { date: b.date, ended: finishedSet.has(b.date), finishedAt: finishedAtMap[b.date] || null, blocks: [], doneCount: 0, total: 0 };
       byDate[b.date].blocks.push({
-        id: b.id, cat: b.cat, name: b.name, icon: b.icon,
+        id: b.id, cat: b.cat, name: b.name, name_he: b.name_he || null, icon: b.icon,
         done: !!t.done, notes: t.notes || '', results: t.results || []
       });
     });
@@ -2776,8 +2819,8 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
           else if (isDone) extraCls = ' done';
           blocksHtml += `<div class="wt-mini${extraCls}" data-block-id="${esc(b.id)}" data-from="${k}">
             <div class="wt-cat">${esc(b.cat)}</div>
-            <div class="wt-name">${esc(b.name)}</div>
-            ${b.body ? `<div class="wt-body">${esc(b.body)}</div>` : ''}
+            <div class="wt-name" dir="auto">${esc(tName(b))}</div>
+            ${tBody(b) ? `<div class="wt-body" dir="auto">${esc(tBody(b))}</div>` : ''}
             <div class="wt-actions">
               <button class="wt-action-btn dup" data-act="dup" title="Duplicate">⧉</button>
               <button class="wt-action-btn del" data-act="del" title="Delete">×</button>
@@ -2845,14 +2888,16 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const b = blocks.find(x => x.id === blockId);
     if (!b) return;
     const newId = uid();
-    const newBlock = { id: newId, icon: b.icon, cat: b.cat, name: b.name, body: b.body, timer: b.timer };
+    const newBlock = { id: newId, icon: b.icon, cat: b.cat, name: b.name, body: b.body,
+      name_he: b.name_he || null, body_he: b.body_he || null, timer: b.timer };
     const newPos = blocks.length;
     PROGRAM[date].push(newBlock);
     renderCalendar(); renderDayDetail(); renderWeeklyTable();
     const { error } = await sb.from('blocks').insert({
       id: newId, user_id: activeUserId(), program_id: currentProgramId,
       date, icon: b.icon, cat: b.cat, name: b.name,
-      body: b.body || '', timer: b.timer || null, position: newPos
+      body: b.body || '', name_he: b.name_he || null, body_he: b.body_he || null,
+      timer: b.timer || null, position: newPos
     });
     if (error){
       alert('Could not duplicate: ' + (error.message || error));
@@ -3056,7 +3101,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
   }
   function buildBlockElement(b){
     const el = document.createElement('div');
-    el.className = 'block';
+    el.className = 'block cat-' + String(b.cat || '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
     el.dataset.id = b.id;
     const originId = b.origin_block_id || b.id;
     el.innerHTML = `
@@ -3068,13 +3113,13 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
         </div>
       </div>
       <h4>${esc(b.cat)}</h4>
-      <div class="name">${esc(b.name)}</div>
-      <div class="body">${linkify(esc(b.body))}</div>
+      <div class="name" dir="auto">${esc(tName(b))}</div>
+      <div class="body" dir="auto">${linkify(esc(tBody(b)))}</div>
       ${timerHTML(b.timer)}
     `;
     el.querySelector('.block-edit:not(.block-lb)').addEventListener('click', () => openModal(b.id));
     const lb = el.querySelector('.block-lb');
-    if (lb) lb.addEventListener('click', () => openBlockLeaderboard(originId, b.name));
+    if (lb) lb.addEventListener('click', () => openBlockLeaderboard(originId, tName(b)));
     if (b.timer) initTimer(el.querySelector('.timer'));
     injectTracker(el, b.id, b);
     return el;
@@ -3100,9 +3145,18 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
 
   /* ============ TIMERS ============ */
   let audioCtx = null;
+  // 'auto'   -> audio session "ambient": mixes with the athlete's music and, on iOS 16.4+,
+  //             obeys the ringer / silent switch.
+  // 'always' -> audio session "playback": beeps come through even on silent.
+  const SOUND_KEY = 'crossfit-timer-sound';
+  function soundMode(){ try { return localStorage.getItem(SOUND_KEY) === 'always' ? 'always' : 'auto'; } catch { return 'auto'; } }
+  function applyAudioSession(){
+    try { if (navigator.audioSession) navigator.audioSession.type = soundMode() === 'always' ? 'playback' : 'ambient'; } catch {}
+  }
   function ensureAudio(){
     try {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      applyAudioSession();
       if (audioCtx.state === 'suspended') audioCtx.resume();
       // iOS/Safari unlock: play a 1-sample silent buffer inside the user gesture
       if (audioCtx && !ensureAudio._unlocked){
@@ -3125,6 +3179,28 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     osc.connect(gain).connect(audioCtx.destination);
     osc.start(t); osc.stop(t + duration + 0.02);
   }
+  // 3-2-1 warning before ANY timed phase runs out — work, rest, EMOM minute, AMRAP.
+  // Loud and high enough to cut through a gym; same sound in every timer.
+  const WARN_SECONDS = [3,2,1];
+  function warnBeep(){ beep(1000, .18, 'square', .5); }
+  function renderSoundSetting(){
+    const btn = document.getElementById('soundModeBtn'); if (!btn) return;
+    const always = soundMode() === 'always';
+    btn.textContent = always ? 'Always on' : 'Follows silent';
+    const sub = document.getElementById('soundModeSub');
+    if (sub) sub.textContent = always
+      ? '3-2-1 beeps before every interval ends — plays even when the phone is on silent'
+      : '3-2-1 beeps before every interval ends — muted when the phone is on silent';
+  }
+  document.getElementById('soundModeBtn')?.addEventListener('click', () => {
+    try { localStorage.setItem(SOUND_KEY, soundMode() === 'always' ? 'auto' : 'always'); } catch {}
+    renderSoundSetting(); ensureAudio(); warnBeep();
+  });
+  document.getElementById('soundTestBtn')?.addEventListener('click', () => {
+    ensureAudio();
+    warnBeep(); setTimeout(warnBeep, 450); setTimeout(warnBeep, 900);
+  });
+  renderSoundSetting();
   const PLAY  = '<svg viewBox="0 0 24 24"><use href="#i-play"/></svg>';
   const PAUSE = '<svg viewBox="0 0 24 24"><use href="#i-pause"/></svg>';
 
@@ -3148,7 +3224,11 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     }
   }
   document.addEventListener('visibilitychange', async () => {
-    if (document.visibilityState === 'visible' && audioCtx && audioCtx.state === 'suspended'){ try { audioCtx.resume(); } catch {} }
+    // Browsers suspend the AudioContext while the page is hidden. Without this the
+    // 3-2-1 beeps stay dead for the rest of the session once the screen has slept.
+    if (document.visibilityState === 'visible' && audioCtx && audioCtx.state === 'suspended'){
+      try { audioCtx.resume(); } catch {}
+    }
     if (document.visibilityState === 'visible' && activeTimerCount > 0 && !wakeLock){
       try {
         if ('wakeLock' in navigator){
@@ -3204,12 +3284,11 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       return Infinity;
     }
     function beepsForSecond(sec){
-      if (mode === 'countdown'){ const left = duration - sec; if (left===3||left===2||left===1) beep(440,.08,'sine',.22); }
+      if (mode === 'countdown'){ if (WARN_SECONDS.includes(duration - sec)) warnBeep(); }
       if (mode === 'emom'){
         const inI = sec % interval;
         if (sec > 0 && inI === 0) beep(660,.22,'sine',.3);
-        const left = interval - inI;
-        if (left===3||left===2||left===1) beep(440,.08,'sine',.22);
+        if (WARN_SECONDS.includes(interval - inI)) warnBeep();
       }
       if (mode === 'interval'){
         const cyc = work + rest;
@@ -3218,13 +3297,15 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
         if (sec > 0 && inR === work) beep(520,.18,'triangle',.28);
         const isWork = inR < work;
         const phaseLeft = isWork ? (work - inR) : (cyc - inR);
-        if (phaseLeft===3||phaseLeft===2||phaseLeft===1) beep(440,.08,'sine',.22);
+        if (WARN_SECONDS.includes(phaseLeft)) warnBeep();
       }
     }
     function handleBeeps(){
       const sec = Math.floor(elapsed);
       if (sec === lastSecond) return;
-      // Catch up seconds skipped by throttled/stalled frames so boundary beeps aren't lost
+      // a dropped frame can skip a whole second — replay the ones we jumped over so a
+      // 3-2-1 warning is never swallowed, but cap the catch-up so a long background
+      // stall doesn't unload a burst of beeps
       const from = Math.max(lastSecond + 1, sec - 3);
       lastSecond = sec;
       for (let s = from; s <= sec; s++) beepsForSecond(s);
@@ -3399,13 +3480,12 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       if (this.hasLock){ this.hasLock = false; releaseWakeLock(); }
     }
     beepsForSecond(sec){
-      const c = this.config;
-      if (c.mode === 'countdown'){ const left = c.duration - sec; if (left===3||left===2||left===1) beep(440,.12,'sine',.32); }
+      const c = this.config; if (!c) return;
+      if (c.mode === 'countdown'){ if (WARN_SECONDS.includes(c.duration - sec)) warnBeep(); }
       if (c.mode === 'emom'){
         const inI = sec % c.interval;
         if (sec > 0 && inI === 0) beep(660,.25,'sine',.38);
-        const left = c.interval - inI;
-        if (left===3||left===2||left===1) beep(440,.12,'sine',.32);
+        if (WARN_SECONDS.includes(c.interval - inI)) warnBeep();
       }
       if (c.mode === 'interval'){
         const cyc = c.work + c.rest;
@@ -3414,7 +3494,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
         if (sec > 0 && inR === c.work) beep(520,.22,'triangle',.34);
         const isWork = inR < c.work;
         const phaseLeft = isWork ? (c.work - inR) : (cyc - inR);
-        if (phaseLeft===3||phaseLeft===2||phaseLeft===1) beep(440,.12,'sine',.32);
+        if (WARN_SECONDS.includes(phaseLeft)) warnBeep();
       }
     }
     handleBeeps(){
@@ -3827,14 +3907,16 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     modalEditingId = blockId;
     const blocks = PROGRAM[selectedKey] || [];
     const block  = blockId ? blocks.find(b => b.id === blockId) : null;
-    modalTitle.textContent = block ? 'Edit Workout' : 'Add Workout';
+    // The modal edits whichever language is currently on screen; the other one is left untouched.
+    const langTag = LANG === 'he' ? ' · עברית' : ' · English';
+    modalTitle.textContent = (block ? 'Edit Workout' : 'Add Workout') + langTag;
     modalDelete.style.display = block ? 'inline-block' : 'none';
     modalForm.reset();
     if (block){
       modalForm.elements.cat.value  = block.cat || '';
       modalForm.elements.icon.value = block.icon || 'i-flame';
-      modalForm.elements.name.value = block.name || '';
-      modalForm.elements.body.value = block.body || '';
+      modalForm.elements.name.value = (LANG === 'he' ? block.name_he : block.name) || '';
+      modalForm.elements.body.value = (LANG === 'he' ? block.body_he : block.body) || '';
       modalForm.elements.scoreType.value = block.score_type || inferScoreType(block) || '';
       const t = block.timer;
       timerModeSel.value = t ? t.m : '';
@@ -3865,8 +3947,17 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const scoreType = f.scoreType.value || null;
     const scoreDir = scoreType === 'time' ? 'low' : (scoreType ? 'high' : null);
     const existing = modalEditingId ? (PROGRAM[selectedKey]||[]).find(b => b.id === modalEditingId) : null;
-    const data = { icon: f.icon.value, cat, name, body: f.body.value.trim(), timer: null,
+    const body = f.body.value.trim();
+    const data = { icon: f.icon.value, cat, timer: null,
       score_type: scoreType, score_dir: scoreDir, origin_block_id: existing?.origin_block_id || null };
+    if (LANG === 'he'){
+      // Editing the Hebrew version — keep the English text as it was (it is the fallback, and name is required).
+      data.name_he = name; data.body_he = body;
+      data.name = existing?.name || name; data.body = existing?.body || body;
+    } else {
+      data.name = name; data.body = body;
+      data.name_he = existing?.name_he || null; data.body_he = existing?.body_he || null;
+    }
     const mode = timerModeSel.value;
     if (mode === 'stopwatch') data.timer = { m:'stopwatch', lbl:'Stopwatch' };
     else if (mode === 'countdown'){
@@ -3982,7 +4073,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     try {
       // Query blocks matching in name/body/cat
       const { data: blockHits } = await sb.from('blocks')
-        .select('id, date, cat, name, body')
+        .select('id, date, cat, name, body, name_he, body_he')
         .eq('user_id', activeUserId());
       // Query tracker matching in notes/results (with block join)
       const { data: trackerHits } = await sb.from('tracker')
@@ -3991,10 +4082,14 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
 
       const matches = [];
       (blockHits || []).forEach(b => {
-        const hay = (b.name + ' ' + b.cat + ' ' + (b.body||'')).toLowerCase();
+        // Search both languages, but show the result in the language currently on screen.
+        const hay = [b.name, b.cat, b.body, b.name_he, b.body_he].filter(Boolean).join(' ').toLowerCase();
         if (hay.includes(qLow)){
-          let snippet = b.body && b.body.toLowerCase().includes(qLow) ? b.body : (b.name + ' · ' + b.cat);
-          matches.push({ date: b.date, name: b.name, cat: b.cat, match: snippet, score: b.name.toLowerCase().includes(qLow) ? 2 : 1 });
+          const nm = tName(b), bd = tBody(b);
+          let snippet = bd && bd.toLowerCase().includes(qLow) ? bd
+                      : ((b.body||'').toLowerCase().includes(qLow) ? b.body
+                      : ((b.body_he||'').toLowerCase().includes(qLow) ? b.body_he : (nm + ' · ' + b.cat)));
+          matches.push({ date: b.date, name: nm, cat: b.cat, match: snippet, score: hay.startsWith(qLow) || (nm||'').toLowerCase().includes(qLow) ? 2 : 1 });
         }
       });
       (trackerHits || []).forEach(t => {
@@ -4461,7 +4556,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
         return `<div class="arc-block ${b.done ? 'done':'undone'}">
           <div class="arc-block-head">
             <svg style="width:14px;height:14px;color:${b.done ? 'var(--good)' : 'var(--muted)'}"><use href="#${b.done ? 'i-check' : 'i-clock'}"/></svg>
-            <span class="arc-block-name">${esc(b.name)}</span>
+            <span class="arc-block-name" dir="auto">${esc(tName(b))}</span>
             <span class="arc-block-cat">${esc(b.cat)}</span>
           </div>
           ${results ? `<div class="arc-results">${results}</div>` : ''}
@@ -5320,6 +5415,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
         id: uid(), user_id: traineeId, program_id: newId,
         date: (shiftDays && b.date) ? addDays(b.date, shiftDays) : b.date,
         icon: b.icon, cat: b.cat, name: b.name, body: b.body || '',
+        name_he: b.name_he || null, body_he: b.body_he || null,
         timer: b.timer || null, position: b.position || 0,
         origin_block_id: b.origin_block_id || b.id, score_dir: b.score_dir || null, score_type: b.score_type || null
       }));
@@ -5341,7 +5437,9 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     if (pe) throw pe;
     if (srcBlocks && srcBlocks.length){
       const rows = srcBlocks.map(b => ({ id: uid(), user_id: currentUser.id, program_id: newId, date: b.date,
-        icon: b.icon, cat: b.cat, name: b.name, body: b.body || '', timer: b.timer || null, position: b.position || 0,
+        icon: b.icon, cat: b.cat, name: b.name, body: b.body || '',
+        name_he: b.name_he || null, body_he: b.body_he || null,
+        timer: b.timer || null, position: b.position || 0,
         score_type: b.score_type || null, score_dir: b.score_dir || null }));
       const { error: ie } = await sb.from('blocks').insert(rows);
       if (ie) throw ie;
@@ -5363,7 +5461,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     </style></head><body><h1>${esc(name||'Program')}</h1><div class="sub">${dates.length} day(s) · ${(blocks||[]).length} workouts</div>`;
     dates.forEach(d => {
       html += `<h2>${esc(d)}</h2>`;
-      byDate[d].forEach(b => { html += `<div class="blk"><div class="cat">${esc(b.cat||'')}</div><div class="nm">${esc(b.name||'')}</div><div class="bd">${esc(b.body||'')}</div></div>`; });
+      byDate[d].forEach(b => { html += `<div class="blk"><div class="cat">${esc(b.cat||'')}</div><div class="nm" dir="auto">${esc(tName(b))}</div><div class="bd" dir="auto">${esc(tBody(b))}</div></div>`; });
     });
     html += `</body></html>`;
     const w = window.open('', '_blank');
