@@ -68,8 +68,9 @@
     --modal-overlay:rgba(20,40,80,.55);
   }
   *{box-sizing:border-box}
-  html,body{margin:0;padding:0}
-  body{font-family:'Inter',system-ui,-apple-system,sans-serif;color:var(--ink);background:var(--bg);min-height:100vh;overflow-x:hidden;line-height:1.55;-webkit-font-smoothing:antialiased;transition:background .35s,color .35s}
+  html,body{margin:0;padding:0;width:100%;overflow-x:clip}
+  body{font-family:'Inter',system-ui,-apple-system,sans-serif;color:var(--ink);background:var(--bg);min-height:100vh;line-height:1.55;-webkit-font-smoothing:antialiased;transition:background .35s,color .35s}
+  img,video,canvas,svg{max-width:100%;height:auto}
   .mesh{position:fixed;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(60% 50% at 85% -10%,var(--mesh-1),transparent 60%),radial-gradient(45% 40% at 10% 10%,var(--mesh-2),transparent 60%),radial-gradient(50% 40% at 50% 110%,var(--mesh-3),transparent 60%),var(--mesh-base);transition:background .35s}
   .grid-overlay{position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.35;background-image:linear-gradient(var(--grid-line) 1px,transparent 1px),linear-gradient(90deg,var(--grid-line) 1px,transparent 1px);background-size:56px 56px;mask-image:radial-gradient(ellipse at 50% 0%,#000 30%,transparent 75%)}
 
@@ -116,8 +117,9 @@
 
   /* Top bar */
   header.topbar{position:sticky;top:0;z-index:30;backdrop-filter:saturate(160%) blur(14px);-webkit-backdrop-filter:saturate(160%) blur(14px);background:var(--panel-3);border-bottom:1px solid var(--line);transition:background .35s,border-color .35s}
-  .topbar .inner{max-width:1240px;margin:0 auto;padding:12px 22px;display:flex;align-items:center;gap:14px;justify-content:space-between;flex-wrap:wrap}
+  .topbar .inner{max-width:1240px;margin:0 auto;padding:12px 22px;display:flex;align-items:center;gap:14px;justify-content:space-between;flex-wrap:wrap;width:100%;min-width:0}
   .brand{display:flex;align-items:center;gap:12px;min-width:0}
+  .topbar-right{min-width:0}
   .logo{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:conic-gradient(from 200deg,var(--blue),var(--cyan),var(--primary),var(--blue));box-shadow:0 8px 24px var(--glow),inset 0 0 0 1px rgba(255,255,255,.2);color:var(--button-text);font-family:'Space Grotesk';font-weight:700;font-size:13px;flex-shrink:0}
   .brand h1{font-size:15px;margin:0;letter-spacing:.3px;font-weight:700;color:var(--ink)}
   .brand small{display:block;color:var(--muted);font-size:11px;letter-spacing:1.4px;text-transform:uppercase;font-family:'Space Grotesk'}
@@ -131,9 +133,9 @@
   [data-theme="light"] .theme-toggle .sun{display:block}
   [data-theme="light"] .theme-toggle .moon{display:none}
 
-  main{max-width:1240px;margin:0 auto;padding:28px 22px 80px}
+  main{max-width:1240px;margin:0 auto;padding:28px 22px 80px;width:100%;min-width:0}
 
-  .hero{position:relative;border:1px solid var(--line);border-radius:24px;padding:40px 36px 36px;margin-bottom:22px;background:linear-gradient(160deg,var(--panel-2),var(--panel));overflow:hidden}
+  .hero{position:relative;border:1px solid var(--line);border-radius:24px;padding:40px 36px 36px;margin-bottom:22px;background:linear-gradient(160deg,var(--panel-2),var(--panel));overflow:hidden;width:100%;min-width:0}
   .hero::before{content:"";position:absolute;inset:-1px;border-radius:24px;pointer-events:none;background:linear-gradient(135deg,rgba(167,200,234,.35),transparent 30%,transparent 70%,rgba(136,212,232,.25));-webkit-mask:linear-gradient(#000,#000) content-box,linear-gradient(#000,#000);-webkit-mask-composite:xor;mask-composite:exclude;padding:1px;opacity:.7}
   .eyebrow{display:inline-flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);padding:6px 12px;border-radius:999px;font-size:11.5px;color:var(--blue-2);font-family:'Space Grotesk';letter-spacing:1.6px;text-transform:uppercase}
   .eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--blue);box-shadow:0 0 12px var(--blue)}
@@ -156,7 +158,7 @@
   .program-card .pc-edit{color:var(--blue-2)}
 
   /* Calendar */
-  .calendar{border:1px solid var(--line);border-radius:20px;background:linear-gradient(180deg,var(--panel-2),var(--panel));padding:18px;margin-bottom:18px}
+  .calendar{border:1px solid var(--line);border-radius:20px;background:linear-gradient(180deg,var(--panel-2),var(--panel));padding:18px;margin-bottom:18px;width:100%;min-width:0}
   .cal-head{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
   .cal-nav{width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer;display:grid;place-items:center;font-size:18px;line-height:1;transition:.2s}
   .cal-nav:hover{background:var(--panel-2);border-color:var(--line-2)}
@@ -170,6 +172,10 @@
   .cal-day .num{font-size:22px;font-weight:800;color:var(--ink);font-family:'Space Grotesk';line-height:1.1}
   .cal-day .ind{margin-top:auto;width:5px;height:5px;border-radius:50%;background:var(--blue);box-shadow:0 0 8px var(--glow);opacity:0;transition:opacity .2s}
   .cal-day.has-workouts .ind{opacity:1}
+  .cal-extra-dots{position:absolute;top:6px;right:6px;display:flex;gap:3px}
+  .cal-extra-dot{width:6px;height:6px;border-radius:50%;display:inline-block}
+  .cal-extra-dot.sauna{background:var(--danger)}
+  .cal-extra-dot.ice{background:var(--cyan)}
   .cal-day.today{border-color:var(--blue);background:linear-gradient(180deg,rgba(167,200,234,.18),var(--panel))}
   .cal-day.today .num{color:var(--blue-3)}
   .cal-day.selected{background:linear-gradient(135deg,var(--blue),var(--primary));border-color:transparent;box-shadow:0 6px 20px var(--glow)}
@@ -177,7 +183,7 @@
   .cal-day.selected .ind{background:var(--button-text);box-shadow:none}
 
   /* Day detail */
-  .day-detail{border:1px solid var(--line);border-radius:22px;overflow:hidden;background:linear-gradient(180deg,var(--panel-2),var(--panel));margin-bottom:22px}
+  .day-detail{border:1px solid var(--line);border-radius:22px;overflow:hidden;background:linear-gradient(180deg,var(--panel-2),var(--panel));margin-bottom:22px;width:100%;min-width:0}
   .day-photo{position:relative;height:220px;overflow:hidden;background:linear-gradient(135deg,#14365e,#1d4d80 50%,#2a6aa8)}
   .quote-banner{
     margin:0 22px;padding:14px 18px;background:var(--panel);border:1px solid var(--line);
@@ -226,8 +232,8 @@
   .empty-state p{margin:0 0 14px;font-size:13.5px}
   .empty-state button{background:linear-gradient(135deg,var(--blue),var(--primary));color:var(--button-text);border:none;padding:10px 18px;border-radius:10px;font-weight:700;cursor:pointer;font-size:13px}
 
-  .blocks{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
-  .block{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 16px 16px;transition:border-color .2s;display:flex;flex-direction:column}
+  .blocks{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;width:100%;min-width:0}
+  .block{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 16px 16px;transition:border-color .2s;display:flex;flex-direction:column;min-width:0}
   .block:hover{border-color:var(--line-2)}
   .block-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
   .block .icon{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:rgba(167,200,234,.1);color:var(--blue);border:1px solid var(--line);flex-shrink:0}
@@ -251,7 +257,7 @@
   .body-link:active{color:var(--blue-3)}
 
   /* Timer */
-  .timer{margin-top:12px;padding:12px;background:var(--panel-3);border:1px solid var(--line);border-radius:12px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;position:relative;overflow:hidden;transition:border-color .25s,box-shadow .25s}
+  .timer{margin-top:12px;padding:12px;background:var(--panel-3);border:1px solid var(--line);border-radius:12px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;position:relative;overflow:hidden;transition:border-color .25s,box-shadow .25s;min-width:0}
   .timer.running{border-color:rgba(136,212,232,.45);box-shadow:0 0 0 1px rgba(136,212,232,.15),0 8px 24px rgba(111,168,224,.15)}
   .timer.done{border-color:rgba(180,224,193,.5);box-shadow:0 0 0 1px rgba(180,224,193,.18)}
   .timer.rest-phase{border-color:rgba(243,200,216,.45)}
@@ -262,7 +268,7 @@
   .timer.done .t-play{background:linear-gradient(135deg,#b4e0c1,#88c89c);color:#0a3018}
   .timer.rest-phase .t-play{background:linear-gradient(135deg,#f3c8d8,#e8a8c4)}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(136,212,232,.55)}70%{box-shadow:0 0 0 14px rgba(136,212,232,0)}100%{box-shadow:0 0 0 0 rgba(136,212,232,0)}}
-  .t-info{display:flex;flex-direction:column;gap:2px;min-width:0}
+  .t-info{display:flex;flex-direction:column;gap:2px;min-width:0;overflow-wrap:anywhere}
   .t-mode{font-family:'Space Grotesk';font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:var(--blue-2);font-weight:600}
   .t-time{font-family:'Space Grotesk';font-weight:800;font-size:36px;letter-spacing:.5px;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1.05;transition:font-size .3s}
   .timer.running .t-time{font-size:52px;color:var(--cyan)}
@@ -280,6 +286,24 @@
   /* Tracker */
   .tracker{margin-top:10px;padding:12px;background:var(--panel-3);border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;gap:10px}
   .tk-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .tk-extras{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 2px}
+  .tk-extra{border:none;border-radius:999px;padding:8px 12px;font-size:12px;font-weight:700;cursor:pointer;transition:.18s;letter-spacing:.2px}
+  .tk-extra.sauna{background:rgba(229,123,142,.14);color:var(--danger);border:1px solid rgba(229,123,142,.28)}
+  .tk-extra.ice{background:rgba(136,212,232,.14);color:var(--cyan);border:1px solid rgba(136,212,232,.28)}
+  .tk-extra.active.sauna{background:var(--danger);color:#fff}
+  .tk-extra.active.ice{background:var(--cyan);color:#06263a}
+  .day-extras{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:0 22px 18px}
+  .day-extra-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:10px}
+  .day-extra-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .day-extra-label{font-family:'Space Grotesk';font-size:11px;letter-spacing:1.3px;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .day-extra-pill{font-size:11px;font-weight:700;border-radius:999px;padding:3px 8px}
+  .day-extra-pill.sauna{background:rgba(229,123,142,.12);color:var(--danger)}
+  .day-extra-pill.ice{background:rgba(136,212,232,.12);color:var(--cyan)}
+  .day-extra-btn{border:none;border-radius:12px;padding:12px 14px;font-size:14px;font-weight:800;cursor:pointer;transition:.18s}
+  .day-extra-btn.sauna-btn{background:rgba(229,123,142,.14);color:var(--danger);border:1px solid rgba(229,123,142,.26)}
+  .day-extra-btn.ice-btn{background:rgba(136,212,232,.14);color:var(--cyan);border:1px solid rgba(136,212,232,.26)}
+  .day-extra-btn.active.sauna-btn{background:var(--danger);color:#fff}
+  .day-extra-btn.active.ice-btn{background:var(--cyan);color:#06263a}
   .tk-toggle{display:inline-flex;align-items:center;gap:10px;cursor:pointer;user-select:none;font-family:'Space Grotesk';font-size:11px;letter-spacing:1.2px;text-transform:uppercase}
   .tk-toggle input{position:absolute;opacity:0;pointer-events:none}
   .tk-track{position:relative;width:44px;height:24px;border-radius:999px;background:linear-gradient(135deg,#e57b8e,#c95066);transition:background .25s;box-shadow:inset 0 1px 4px rgba(0,0,0,.3);flex-shrink:0;direction:ltr}
@@ -804,9 +828,21 @@
 
   @media (max-width:900px){.stats{grid-template-columns:repeat(2,1fr)}.charts{grid-template-columns:1fr}}
   @media (max-width:680px){
+    html,body{overflow-x:clip}
     main{padding:18px 14px 60px}
+    .day-extras{padding:0 16px 18px;grid-template-columns:1fr}
+    .day-extra-btn,.tk-extra{width:100%;justify-content:center}
+    .topbar .inner{padding:10px 14px}
+    .topbar-right{width:100%;justify-content:flex-end}
     .hero{padding:26px 22px}
+    .stats{grid-template-columns:1fr}
+    .cal-head{align-items:stretch}
+    .cal-range{flex-basis:100%;order:3;text-align:left}
+    .cal-strip{grid-template-columns:repeat(7,minmax(44px,1fr))}
     .day-photo{height:170px}.day-title-wrap h2{font-size:22px}.day-body{padding:18px}
+    .day-photo .day-title-wrap{padding:0 16px}
+    .quote-banner{margin:18px 16px 0;padding:12px 14px}
+    .day-body,.calendar,.day-detail,.hero{max-width:100%;min-width:0}
     .cal-day{min-height:64px}.cal-day .num{font-size:18px}.cal-day .dow{font-size:9px}.cal-range{font-size:13px}
     .t-time{font-size:22px}
     .form-row.grid-2,.form-row.grid-3{grid-template-columns:1fr}
@@ -2314,7 +2350,15 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const { data, error } = await sb.from('tracker').select('*').eq('user_id', activeUserId());
     if (error){ console.error(error); return {}; }
     const t = {};
-    data.forEach(row => { t[row.block_id] = { done: !!row.done, notes: row.notes || '', results: row.results || [] }; });
+    data.forEach(row => {
+      t[row.block_id] = {
+        done: !!row.done,
+        notes: row.notes || '',
+        results: row.results || [],
+        sauna: !!row.sauna,
+        ice: !!row.ice
+      };
+    });
     return t;
   }
   async function upsertBlock(date, block, position){
@@ -2337,6 +2381,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const { error } = await sb.from('tracker').upsert({
       block_id: blockId, user_id: activeUserId(),
       done: !!state.done, notes: state.notes || '', results: state.results || [],
+      sauna: !!state.sauna, ice: !!state.ice,
       updated_at: new Date().toISOString()
     });
     if (error) console.error('saveTracker:', error);
@@ -2563,7 +2608,9 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       const d = parseKey(k);
       const has = PROGRAM[k] && PROGRAM[k].length > 0;
       const cls = [has ? 'has-workouts' : '', k === today ? 'today' : '', k === selectedKey ? 'selected' : ''].filter(Boolean).join(' ');
-      html += `<div class="cal-day ${cls}" data-key="${k}"><div class="dow">${DOWS_SHORT[d.getDay()]}</div><div class="num">${d.getDate()}</div><div class="ind"></div></div>`;
+      const dayExtra = tkDataByDate(k);
+      const extraDots = `${dayExtra.sauna ? '<span class="cal-extra-dot sauna"></span>' : ''}${dayExtra.ice ? '<span class="cal-extra-dot ice"></span>' : ''}`;
+      html += `<div class="cal-day ${cls}" data-key="${k}"><div class="dow">${DOWS_SHORT[d.getDay()]}</div><div class="num">${d.getDate()}</div><div class="ind"></div>${extraDots ? `<div class="cal-extra-dots">${extraDots}</div>` : ''}</div>`;
     }
     strip.innerHTML = html;
     strip.querySelectorAll('.cal-day').forEach(el => {
@@ -2611,9 +2658,10 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const weekEndK = addDays(weekStart, 6);
     const weekBlocks = all.filter(b => b.date >= weekStart && b.date <= weekEndK);
     const weekDone = weekBlocks.filter(b => tkData[b.id]?.done).length;
-
     const todayBlocks = all.filter(b => b.date === today);
     const todayDone = todayBlocks.filter(b => tkData[b.id]?.done).length;
+
+
 
     // Streak: consecutive past days (incl. today if any done) where every block is done
     let streak = 0;
@@ -2643,6 +2691,15 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     }
     if (lead && prog?.description){ lead.textContent = prog.description; }
 
+    const weekDateKeys = [];
+    for (let i = 0; i < 7; i++) weekDateKeys.push(addDays(weekStart, i));
+    const saunaIce = weekDateKeys.reduce((acc, k) => {
+      const s = tkDataByDate(k);
+      if (s.sauna) acc.sauna++;
+      if (s.ice) acc.ice++;
+      return acc;
+    }, { sauna: 0, ice: 0 });
+
     stats.innerHTML = `
       <div class="stat ${weekDone === weekBlocks.length && weekBlocks.length ? 'good' : ''}">
         <div class="k">This Week</div><div class="v">${weekDone}<small>/ ${weekBlocks.length}</small></div>
@@ -2655,6 +2712,9 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       </div>
       <div class="stat ${streak >= 3 ? 'good' : ''}">
         <div class="k">Streak</div><div class="v">${streak}<small>day${streak === 1 ? '' : 's'}</small></div>
+      </div>
+      <div class="stat">
+        <div class="k">Sauna / Ice</div><div class="v"><span style="color:var(--danger)">${saunaIce.sauna}</span><small> / </small><span style="color:var(--cyan)">${saunaIce.ice}</span></div>
       </div>`;
 
     if (hpFill) hpFill.style.width = pct + '%';
@@ -2671,6 +2731,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const allDone = total > 0 && done === total;
     const ended = finishedDates.has(selectedKey);
     const detail = document.getElementById('dayDetail');
+    const dayState = tkDataByDate(selectedKey);
     let progressBadge = '';
     if (ended) progressBadge = `<div class="day-progress complete"><span class="dot"></span>Day Ended · ${done} / ${total}</div>`;
     else if (total) progressBadge = `<div class="day-progress ${allDone ? 'complete' : ''}"><span class="dot"></span>${done} / ${total} completed</div>`;
@@ -2703,7 +2764,8 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
             <p>Add a workout to plan a session, or pick another day in the calendar.</p>
             <button id="emptyAddBtn"><svg style="width:14px;height:14px;vertical-align:-2px;margin-right:4px"><use href="#i-plus"/></svg> Add Workout</button>
           </div>`}
-      </div>`;
+      </div>
+      ${total ? `<div class="day-extras"><div class="day-extra-card"><div class="day-extra-head"><span class="day-extra-label">Sauna</span><span class="day-extra-pill sauna">Red</span></div><button class="day-extra-btn sauna-btn ${dayState.sauna ? 'active' : ''}" data-extra="sauna">Sauna</button></div><div class="day-extra-card"><div class="day-extra-head"><span class="day-extra-label">Ice</span><span class="day-extra-pill ice">Blue</span></div><button class="day-extra-btn ice-btn ${dayState.ice ? 'active' : ''}" data-extra="ice">Ice</button></div></div>` : ''}`;
     document.getElementById('addBlockBtn').addEventListener('click', () => openModal(null));
     const emptyBtn = document.getElementById('emptyAddBtn');
     if (emptyBtn) emptyBtn.addEventListener('click', () => openModal(null));
@@ -2711,6 +2773,14 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     if (dtBtn) dtBtn.addEventListener('click', openDayTimerModal);
     const fdBtn = document.getElementById('finishDayBtn');
     if (fdBtn) fdBtn.addEventListener('click', ended ? () => unfinishDay(selectedKey) : finishDay);
+    detail.querySelectorAll('.day-extra-btn').forEach(btn => btn.addEventListener('click', async () => {
+      const key = btn.dataset.extra;
+      const s = tkDataByDate(selectedKey);
+      s[key] = !s[key];
+      btn.classList.toggle('active', s[key]);
+      await saveDayExtras(selectedKey, s);
+      renderHeroStats();
+    }));
     if (blocks.length){
       const container = document.getElementById('blocksContainer');
       blocks.forEach(b => container.appendChild(buildBlockElement(b)));
@@ -3093,10 +3163,19 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       applyAudioSession();
       if (audioCtx.state === 'suspended') audioCtx.resume();
+      // iOS/Safari unlock: play a 1-sample silent buffer inside the user gesture
+      if (audioCtx && !ensureAudio._unlocked){
+        const buf = audioCtx.createBuffer(1, 1, 22050);
+        const src = audioCtx.createBufferSource();
+        src.buffer = buf; src.connect(audioCtx.destination); src.start(0);
+        ensureAudio._unlocked = true;
+      }
     } catch {}
   }
   function beep(freq=660, duration=0.15, type='sine', vol=0.25){
+    try { if (!audioCtx) ensureAudio(); } catch {}
     if (!audioCtx) return;
+    if (audioCtx.state === 'suspended'){ try { audioCtx.resume(); } catch {} }
     const t = audioCtx.currentTime;
     const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
     osc.type = type; osc.frequency.value = freq;
@@ -3230,10 +3309,11 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       const sec = Math.floor(elapsed);
       if (sec === lastSecond) return;
       // a dropped frame can skip a whole second — replay the ones we jumped over so a
-      // 3-2-1 warning is never swallowed
-      if (lastSecond >= 0) for (let s = lastSecond + 1; s < sec; s++) beepsForSecond(s);
+      // 3-2-1 warning is never swallowed, but cap the catch-up so a long background
+      // stall doesn't unload a burst of beeps
+      const from = Math.max(lastSecond + 1, sec - 3);
       lastSecond = sec;
-      beepsForSecond(sec);
+      for (let s = from; s <= sec; s++) beepsForSecond(s);
     }
     function render(){
       const sec = elapsed;
@@ -3264,20 +3344,22 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       const tot = total();
       if (tot !== Infinity && elapsed >= tot){
         elapsed = tot; running = false;
+        if (raf){ clearInterval(raf); raf = null; }
         el.classList.remove('running','rest-phase'); el.classList.add('done');
         dom.play.innerHTML = PLAY; handleBeeps(); render();
         beep(880,.45,'sine',.3); setTimeout(()=>beep(1320,.5,'sine',.3), 200);
         if (hasWakeLock){ hasWakeLock = false; releaseWakeLock(); }
         return;
       }
-      handleBeeps(); render(); raf = requestAnimationFrame(tick);
+      handleBeeps(); render();
     }
     function startNow(){
       running = true;
       el.classList.add('running');
       dom.play.innerHTML = PAUSE;
       lastTickMs = performance.now();
-      raf = requestAnimationFrame(tick);
+      if (raf) clearInterval(raf);
+      raf = setInterval(tick, 100); // interval instead of rAF: keeps ticking (and beeping) when frames are throttled
       if (!hasWakeLock){ hasWakeLock = true; acquireWakeLock(); }
     }
     function toggle(){
@@ -3287,7 +3369,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
         running = false;
         el.classList.remove('running');
         dom.play.innerHTML = PLAY;
-        if (raf) cancelAnimationFrame(raf);
+        if (raf){ clearInterval(raf); raf = null; }
         if (hasWakeLock){ hasWakeLock = false; releaseWakeLock(); }
       } else {
         if (elapsed < 0.1) runCountdown(() => startNow());
@@ -3295,7 +3377,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       }
     }
     function reset(){
-      if (raf) cancelAnimationFrame(raf);
+      if (raf){ clearInterval(raf); raf = null; }
       running = false; elapsed = 0; lastSecond = -1;
       el.classList.remove('running','done','rest-phase');
       dom.play.innerHTML = PLAY; render();
@@ -3357,7 +3439,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     close(){
       if (this.running){
         this.running = false;
-        if (this.raf) cancelAnimationFrame(this.raf);
+        if (this.raf){ clearInterval(this.raf); this.raf = null; }
         if (this.hasLock){ this.hasLock = false; releaseWakeLock(); }
       }
       this.el.classList.remove('open'); this.mini.classList.remove('open');
@@ -3379,7 +3461,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       if (this.running){
         this.running = false;
         this.dom.playBtn.innerHTML = PLAY_BIG;
-        if (this.raf) cancelAnimationFrame(this.raf);
+        if (this.raf){ clearInterval(this.raf); this.raf = null; }
         if (this.hasLock){ this.hasLock = false; releaseWakeLock(); }
       } else {
         if (this.elapsed < 0.1) runCountdown(() => this._startInternal());
@@ -3390,11 +3472,12 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       this.running = true;
       this.dom.playBtn.innerHTML = PAUSE_BIG;
       this.lastTickMs = performance.now();
-      this.raf = requestAnimationFrame(() => this.tick());
+      if (this.raf) clearInterval(this.raf);
+      this.raf = setInterval(() => this.tick(), 100);
       if (!this.hasLock){ this.hasLock = true; acquireWakeLock(); }
     }
     reset(){
-      if (this.raf) cancelAnimationFrame(this.raf);
+      if (this.raf){ clearInterval(this.raf); this.raf = null; }
       this.running = false; this.elapsed = 0; this.lastSecond = -1;
       this.el.classList.remove('rest-phase','done');
       this.dom.playBtn.innerHTML = PLAY_BIG;
@@ -3422,9 +3505,9 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     handleBeeps(){
       const sec = Math.floor(this.elapsed);
       if (sec === this.lastSecond) return;
-      if (this.lastSecond >= 0) for (let s = this.lastSecond + 1; s < sec; s++) this.beepsForSecond(s);
+      const from = Math.max(this.lastSecond + 1, sec - 3);
       this.lastSecond = sec;
-      this.beepsForSecond(sec);
+      for (let s = from; s <= sec; s++) this.beepsForSecond(s);
     }
     tick(){
       if (!this.running) return;
@@ -3434,6 +3517,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       const tot = this.total();
       if (tot !== Infinity && this.elapsed >= tot){
         this.elapsed = tot; this.running = false;
+        if (this.raf){ clearInterval(this.raf); this.raf = null; }
         this.el.classList.remove('rest-phase'); this.el.classList.add('done');
         this.handleBeeps(); this.render();
         beep(880,.5,'sine',.4); setTimeout(()=>beep(1320,.6,'sine',.4), 200);
@@ -3442,7 +3526,6 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
         return;
       }
       this.handleBeeps(); this.render();
-      this.raf = requestAnimationFrame(() => this.tick());
     }
     render(){
       const c = this.config; if (!c) return;
@@ -3566,9 +3649,29 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
   /* ============ TRACKER ============ */
   const ICON_VIDEO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>';
 
+  function tkDataByDate(dateKey){
+    const out = { sauna:false, ice:false };
+    (PROGRAM[dateKey] || []).forEach(b => {
+      const s = tkData[b.id] || {};
+      if (s.sauna) out.sauna = true;
+      if (s.ice) out.ice = true;
+    });
+    return out;
+  }
+
+  async function saveDayExtras(dateKey, state){
+    const blocks = PROGRAM[dateKey] || [];
+    await Promise.all(blocks.map(b => {
+      const prev = tkData[b.id] || {};
+      const next = Object.assign({}, prev, { sauna: !!state.sauna, ice: !!state.ice });
+      tkData[b.id] = next;
+      return saveTrackerForBlock(b.id, next);
+    }));
+  }
+
   function injectTracker(block, key, b){
     const scoreType = inferScoreType(b);   // explicit, or auto-detected from the workout
-    const state = tkData[key] = Object.assign({ done:false, notes:'', results:[] }, tkData[key] || {});
+    const state = tkData[key] = Object.assign({ done:false, notes:'', results:[], sauna:false, ice:false }, tkData[key] || {});
     let addHtml;
     if (scoreType === 'weight'){
       addHtml = `<form class="tk-add"><input type="number" step="0.5" inputmode="decimal" placeholder="Weight (kg)" /><button type="submit" aria-label="Add">+</button></form>`;
@@ -3595,6 +3698,10 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
             <span class="tk-label">${state.done ? 'Done ✓' : 'Not done'}</span>
           </label>
         </div>
+        <div class="tk-extras">
+          <button type="button" class="tk-extra sauna ${state.sauna ? 'active' : ''}" data-extra="sauna">Sauna</button>
+          <button type="button" class="tk-extra ice ${state.ice ? 'active' : ''}" data-extra="ice">Ice</button>
+        </div>
         <textarea class="tk-notes" placeholder="Workout notes..." rows="2">${esc(state.notes || '')}</textarea>
         <div class="tk-results">
           <div class="tk-list"></div>
@@ -3614,6 +3721,14 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const label   = tracker.querySelector('.tk-label');
     const notes   = tracker.querySelector('.tk-notes');
     const list    = tracker.querySelector('.tk-list');
+    tracker.querySelectorAll('.tk-extra').forEach(btn => btn.addEventListener('click', () => {
+      const k = btn.dataset.extra;
+      state[k] = !state[k];
+      btn.classList.toggle('active', state[k]);
+      saveTrackerForBlock(key, state);
+      renderCalendar();
+      renderHeroStats();
+    }));
     const videoList = tracker.querySelector('.tk-video-list');
     const fileInput = tracker.querySelector('.tk-file-input');
     const btnVideo  = tracker.querySelector('.tk-btn-video');
@@ -3631,6 +3746,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       saveTrackerForBlock(key, state);
       updateDayProgress();
       renderCalendar();
+      renderHeroStats();
     });
     let notesTimer;
     notes.addEventListener('input', () => {
