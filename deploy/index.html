@@ -275,6 +275,24 @@
   /* Tracker */
   .tracker{margin-top:10px;padding:12px;background:var(--panel-3);border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;gap:10px}
   .tk-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .tk-extras{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 2px}
+  .tk-extra{border:none;border-radius:999px;padding:8px 12px;font-size:12px;font-weight:700;cursor:pointer;transition:.18s;letter-spacing:.2px}
+  .tk-extra.sauna{background:rgba(229,123,142,.14);color:var(--danger);border:1px solid rgba(229,123,142,.28)}
+  .tk-extra.ice{background:rgba(136,212,232,.14);color:var(--cyan);border:1px solid rgba(136,212,232,.28)}
+  .tk-extra.active.sauna{background:var(--danger);color:#fff}
+  .tk-extra.active.ice{background:var(--cyan);color:#06263a}
+  .day-extras{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:0 22px 18px}
+  .day-extra-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:10px}
+  .day-extra-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .day-extra-label{font-family:'Space Grotesk';font-size:11px;letter-spacing:1.3px;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .day-extra-pill{font-size:11px;font-weight:700;border-radius:999px;padding:3px 8px}
+  .day-extra-pill.sauna{background:rgba(229,123,142,.12);color:var(--danger)}
+  .day-extra-pill.ice{background:rgba(136,212,232,.12);color:var(--cyan)}
+  .day-extra-btn{border:none;border-radius:12px;padding:12px 14px;font-size:14px;font-weight:800;cursor:pointer;transition:.18s}
+  .day-extra-btn.sauna-btn{background:rgba(229,123,142,.14);color:var(--danger);border:1px solid rgba(229,123,142,.26)}
+  .day-extra-btn.ice-btn{background:rgba(136,212,232,.14);color:var(--cyan);border:1px solid rgba(136,212,232,.26)}
+  .day-extra-btn.active.sauna-btn{background:var(--danger);color:#fff}
+  .day-extra-btn.active.ice-btn{background:var(--cyan);color:#06263a}
   .tk-toggle{display:inline-flex;align-items:center;gap:10px;cursor:pointer;user-select:none;font-family:'Space Grotesk';font-size:11px;letter-spacing:1.2px;text-transform:uppercase}
   .tk-toggle input{position:absolute;opacity:0;pointer-events:none}
   .tk-track{position:relative;width:44px;height:24px;border-radius:999px;background:linear-gradient(135deg,#e57b8e,#c95066);transition:background .25s;box-shadow:inset 0 1px 4px rgba(0,0,0,.3);flex-shrink:0;direction:ltr}
@@ -801,6 +819,8 @@
   @media (max-width:680px){
     html,body{overflow-x:clip}
     main{padding:18px 14px 60px}
+    .day-extras{padding:0 16px 18px;grid-template-columns:1fr}
+    .day-extra-btn,.tk-extra{width:100%;justify-content:center}
     .topbar .inner{padding:10px 14px}
     .topbar-right{width:100%;justify-content:flex-end}
     .hero{padding:26px 22px}
@@ -2284,7 +2304,15 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const { data, error } = await sb.from('tracker').select('*').eq('user_id', activeUserId());
     if (error){ console.error(error); return {}; }
     const t = {};
-    data.forEach(row => { t[row.block_id] = { done: !!row.done, notes: row.notes || '', results: row.results || [] }; });
+    data.forEach(row => {
+      t[row.block_id] = {
+        done: !!row.done,
+        notes: row.notes || '',
+        results: row.results || [],
+        sauna: !!row.sauna,
+        ice: !!row.ice
+      };
+    });
     return t;
   }
   async function upsertBlock(date, block, position){
@@ -2306,6 +2334,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const { error } = await sb.from('tracker').upsert({
       block_id: blockId, user_id: activeUserId(),
       done: !!state.done, notes: state.notes || '', results: state.results || [],
+      sauna: !!state.sauna, ice: !!state.ice,
       updated_at: new Date().toISOString()
     });
     if (error) console.error('saveTracker:', error);
@@ -2628,7 +2657,13 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
 
     if (hpFill) hpFill.style.width = pct + '%';
     if (hpMeta){
-      hpMeta.innerHTML = `<span><strong>${done}</strong> of ${total} blocks done</span><span>Today: <strong>${todayDone}/${todayBlocks.length}</strong></span>`;
+      const saunaIce = weekBlocks.reduce((acc, b) => {
+        const s = tkData[b.id] || {};
+        if (s.sauna) acc.sauna++;
+        if (s.ice) acc.ice++;
+        return acc;
+      }, { sauna: 0, ice: 0 });
+      hpMeta.innerHTML = `<span><strong>${done}</strong> of ${total} blocks done</span><span>Today: <strong>${todayDone}/${todayBlocks.length}</strong></span><span>Sauna: <strong>${saunaIce.sauna}</strong> · Ice: <strong>${saunaIce.ice}</strong></span>`;
     }
   }
 
@@ -2640,6 +2675,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const allDone = total > 0 && done === total;
     const ended = finishedDates.has(selectedKey);
     const detail = document.getElementById('dayDetail');
+    const dayState = tkDataByDate(selectedKey);
     let progressBadge = '';
     if (ended) progressBadge = `<div class="day-progress complete"><span class="dot"></span>Day Ended · ${done} / ${total}</div>`;
     else if (total) progressBadge = `<div class="day-progress ${allDone ? 'complete' : ''}"><span class="dot"></span>${done} / ${total} completed</div>`;
@@ -2665,6 +2701,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
           </div>
         </div>
       </div>
+      ${total ? `<div class="day-extras"><div class="day-extra-card"><div class="day-extra-head"><span class="day-extra-label">Sauna</span><span class="day-extra-pill sauna">Red</span></div><button class="day-extra-btn sauna-btn ${dayState.sauna ? 'active' : ''}" data-extra="sauna">Sauna</button></div><div class="day-extra-card"><div class="day-extra-head"><span class="day-extra-label">Ice</span><span class="day-extra-pill ice">Blue</span></div><button class="day-extra-btn ice-btn ${dayState.ice ? 'active' : ''}" data-extra="ice">Ice</button></div></div>` : ''}
       <div class="day-body">
         ${blocks.length ? `<div class="blocks" id="blocksContainer"></div>` : `
           <div class="empty-state">
@@ -2680,6 +2717,14 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     if (dtBtn) dtBtn.addEventListener('click', openDayTimerModal);
     const fdBtn = document.getElementById('finishDayBtn');
     if (fdBtn) fdBtn.addEventListener('click', ended ? () => unfinishDay(selectedKey) : finishDay);
+    detail.querySelectorAll('.day-extra-btn').forEach(btn => btn.addEventListener('click', async () => {
+      const key = btn.dataset.extra;
+      const s = tkDataByDate(selectedKey);
+      s[key] = !s[key];
+      btn.classList.toggle('active', s[key]);
+      await saveDayExtras(selectedKey, s);
+      renderHeroStats();
+    }));
     if (blocks.length){
       const container = document.getElementById('blocksContainer');
       blocks.forEach(b => container.appendChild(buildBlockElement(b)));
@@ -3511,9 +3556,29 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
   /* ============ TRACKER ============ */
   const ICON_VIDEO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>';
 
+  function tkDataByDate(dateKey){
+    const out = { sauna:false, ice:false };
+    (PROGRAM[dateKey] || []).forEach(b => {
+      const s = tkData[b.id] || {};
+      if (s.sauna) out.sauna = true;
+      if (s.ice) out.ice = true;
+    });
+    return out;
+  }
+
+  async function saveDayExtras(dateKey, state){
+    const blocks = PROGRAM[dateKey] || [];
+    await Promise.all(blocks.map(b => {
+      const prev = tkData[b.id] || {};
+      const next = Object.assign({}, prev, { sauna: !!state.sauna, ice: !!state.ice });
+      tkData[b.id] = next;
+      return saveTrackerForBlock(b.id, next);
+    }));
+  }
+
   function injectTracker(block, key, b){
     const scoreType = inferScoreType(b);   // explicit, or auto-detected from the workout
-    const state = tkData[key] = Object.assign({ done:false, notes:'', results:[] }, tkData[key] || {});
+    const state = tkData[key] = Object.assign({ done:false, notes:'', results:[], sauna:false, ice:false }, tkData[key] || {});
     let addHtml;
     if (scoreType === 'weight'){
       addHtml = `<form class="tk-add"><input type="number" step="0.5" inputmode="decimal" placeholder="Weight (kg)" /><button type="submit" aria-label="Add">+</button></form>`;
@@ -3540,6 +3605,10 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
             <span class="tk-label">${state.done ? 'Done ✓' : 'Not done'}</span>
           </label>
         </div>
+        <div class="tk-extras">
+          <button type="button" class="tk-extra sauna ${state.sauna ? 'active' : ''}" data-extra="sauna">Sauna</button>
+          <button type="button" class="tk-extra ice ${state.ice ? 'active' : ''}" data-extra="ice">Ice</button>
+        </div>
         <textarea class="tk-notes" placeholder="Workout notes..." rows="2">${esc(state.notes || '')}</textarea>
         <div class="tk-results">
           <div class="tk-list"></div>
@@ -3559,6 +3628,14 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const label   = tracker.querySelector('.tk-label');
     const notes   = tracker.querySelector('.tk-notes');
     const list    = tracker.querySelector('.tk-list');
+    tracker.querySelectorAll('.tk-extra').forEach(btn => btn.addEventListener('click', () => {
+      const k = btn.dataset.extra;
+      state[k] = !state[k];
+      btn.classList.toggle('active', state[k]);
+      saveTrackerForBlock(key, state);
+      renderCalendar();
+      renderHeroStats();
+    }));
     const videoList = tracker.querySelector('.tk-video-list');
     const fileInput = tracker.querySelector('.tk-file-input');
     const btnVideo  = tracker.querySelector('.tk-btn-video');
@@ -3576,6 +3653,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       saveTrackerForBlock(key, state);
       updateDayProgress();
       renderCalendar();
+      renderHeroStats();
     });
     let notesTimer;
     notes.addEventListener('input', () => {
