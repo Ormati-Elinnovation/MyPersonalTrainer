@@ -829,7 +829,11 @@
     .topbar .inner{padding:10px 14px}
     .topbar-right{width:100%;justify-content:flex-end}
     .hero{padding:26px 22px}
-    .stats{grid-template-columns:1fr}
+    .stats{grid-template-columns:repeat(3,1fr);gap:6px}
+    .stat{padding:8px 6px;text-align:center;border-radius:10px}
+    .stat .k{font-size:9px;letter-spacing:.6px}
+    .stat .v{font-size:17px;margin-top:1px}
+    .stat .v small{font-size:10px;margin-left:2px}
     .cal-head{align-items:stretch}
     .cal-range{flex-basis:100%;order:3;text-align:left}
     .cal-strip{grid-template-columns:repeat(7,minmax(44px,1fr))}
