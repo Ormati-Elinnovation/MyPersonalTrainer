@@ -170,10 +170,8 @@
   .cal-day:hover{background:var(--panel-2);border-color:var(--line-2)}
   .cal-day .dow{font-size:10px;color:var(--muted);font-family:'Space Grotesk';letter-spacing:1.2px;text-transform:uppercase;font-weight:600}
   .cal-day .num{font-size:22px;font-weight:800;color:var(--ink);font-family:'Space Grotesk';line-height:1.1}
-  .cal-day .ind{margin-top:auto;width:5px;height:5px;border-radius:50%;background:var(--blue);box-shadow:0 0 8px var(--glow);opacity:0;transition:opacity .2s}
-  .cal-day.has-workouts .ind{opacity:1}
-  .cal-extra-dots{position:absolute;top:6px;right:6px;display:flex;gap:3px}
-  .cal-extra-dot{width:6px;height:6px;border-radius:50%;display:inline-block}
+  .cal-extra-dots{display:flex;justify-content:center;align-items:center;gap:4px;min-height:8px;margin-top:4px;width:100%}
+  .cal-extra-dot{width:6px;height:6px;border-radius:50%;display:inline-block;flex-shrink:0}
   .cal-extra-dot.sauna{background:var(--danger)}
   .cal-extra-dot.ice{background:var(--cyan)}
   .cal-day.today{border-color:var(--blue);background:linear-gradient(180deg,rgba(167,200,234,.18),var(--panel))}
@@ -2608,7 +2606,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       const cls = [has ? 'has-workouts' : '', k === today ? 'today' : '', k === selectedKey ? 'selected' : ''].filter(Boolean).join(' ');
       const dayExtra = tkDataByDate(k);
       const extraDots = `${dayExtra.sauna ? '<span class="cal-extra-dot sauna"></span>' : ''}${dayExtra.ice ? '<span class="cal-extra-dot ice"></span>' : ''}`;
-      html += `<div class="cal-day ${cls}" data-key="${k}"><div class="dow">${DOWS_SHORT[d.getDay()]}</div><div class="num">${d.getDate()}</div><div class="ind"></div>${extraDots ? `<div class="cal-extra-dots">${extraDots}</div>` : ''}</div>`;
+      html += `<div class="cal-day ${cls}" data-key="${k}"><div class="dow">${DOWS_SHORT[d.getDay()]}</div><div class="num">${d.getDate()}</div>${extraDots ? `<div class="cal-extra-dots">${extraDots}</div>` : '<div class="cal-extra-dots"></div>'}</div>`;
     }
     strip.innerHTML = html;
     strip.querySelectorAll('.cal-day').forEach(el => {
