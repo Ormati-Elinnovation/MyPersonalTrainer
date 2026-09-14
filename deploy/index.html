@@ -117,7 +117,14 @@
 
   /* Top bar */
   header.topbar{position:sticky;top:0;z-index:30;backdrop-filter:saturate(160%) blur(14px);-webkit-backdrop-filter:saturate(160%) blur(14px);background:var(--panel-3);border-bottom:1px solid var(--line);transition:background .35s,border-color .35s}
-  .topbar .inner{max-width:1240px;margin:0 auto;padding:10px 18px;display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap;width:100%;min-width:0}
+  .topbar .inner{max-width:1240px;margin:0 auto;padding:10px 18px;display:flex;align-items:center;gap:10px;justify-content:flex-start;flex-wrap:wrap;width:100%;min-width:0;position:relative}
+  #topMenuBtn{order:0}
+  .brand{order:1}
+  #topMenuDropdown{position:absolute;top:100%;left:0;margin-top:8px;background:var(--panel-3);border:1px solid var(--line);border-radius:14px;padding:10px;display:none;flex-direction:column;gap:6px;box-shadow:0 16px 40px rgba(0,0,0,.35);z-index:40;min-width:180px}
+  #topMenuDropdown.open{display:flex}
+  #topMenuDropdown .top-role-btn,#topMenuDropdown .icon-btn{width:100%;height:auto;padding:9px 12px;justify-content:flex-start;flex-direction:row;gap:8px;border-radius:9px}
+  .menu-label{display:none;font-size:13px;font-weight:600;color:var(--ink)}
+  #topMenuDropdown .menu-label{display:inline}
   .brand{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
   .topbar-right{min-width:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .logo{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:radial-gradient(circle at 35% 30%,rgba(255,255,255,.9),transparent 26%),conic-gradient(from 180deg,var(--blue),var(--cyan),var(--primary),var(--blue));box-shadow:0 8px 24px var(--glow),inset 0 0 0 1px rgba(255,255,255,.22);color:var(--button-text);flex-shrink:0;overflow:hidden}
@@ -165,7 +172,8 @@
   .cal-range{flex:1;text-align:center;font-family:'Space Grotesk';font-weight:700;font-size:15px;color:var(--ink);letter-spacing:.3px}
   .cal-today{background:linear-gradient(135deg,var(--blue),var(--primary));color:var(--button-text);border:none;padding:8px 14px;border-radius:10px;font-weight:700;cursor:pointer;font-family:'Inter';font-size:12.5px;box-shadow:0 4px 14px var(--glow);transition:transform .15s}
   .cal-today:hover{transform:translateY(-1px)}
-  .cal-strip{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+  .cal-strip-row{display:flex;align-items:center;gap:8px}
+  .cal-strip{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;flex:1;min-width:0}
   .cal-day{position:relative;border:1px solid var(--line);border-radius:12px;padding:10px 4px 8px;background:var(--panel);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;transition:.2s;min-height:74px;text-align:center}
   .cal-day:hover{background:var(--panel-2);border-color:var(--line-2)}
   .cal-day .dow{font-size:10px;color:var(--muted);font-family:'Space Grotesk';letter-spacing:1.2px;text-transform:uppercase;font-weight:600}
@@ -612,6 +620,7 @@
 
   /* === Day Action Buttons === */
   .day-actions{display:flex;gap:8px;flex-wrap:wrap}
+  .day-progress-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
   .btn-day-action{
     background:rgba(7,17,31,.55);backdrop-filter:blur(8px);color:#fff;
     border:1px solid var(--line-2);padding:8px 13px;border-radius:10px;
@@ -846,10 +855,6 @@
     .day-extras{padding:14px 16px 18px;grid-template-columns:1fr}
     .day-extra-btn,.tk-extra{width:100%;justify-content:center}
     .topbar .inner{padding:8px 14px;gap:8px}
-    .topbar-right{width:100%;justify-content:flex-start;gap:6px}
-    .icon-btn,.top-role-btn{height:32px;width:32px;font-size:12px}
-    .top-role-btn{width:auto;padding:0 10px}
-    .profile-btn{order:-1}
     .hero{padding:26px 22px}
     .stats{grid-template-columns:repeat(3,1fr);gap:6px}
     .stat{padding:8px 6px;text-align:center;border-radius:10px}
@@ -939,6 +944,9 @@
 <!-- MAIN APP -->
 <header class="topbar" id="topbar" style="display:none">
   <div class="inner">
+    <button class="icon-btn" id="topMenuBtn" aria-label="Menu" aria-haspopup="true" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+    </button>
     <div class="brand">
       <div class="logo" aria-label="Lion kettlebell logo"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="34" r="14" fill="none" stroke="currentColor" stroke-width="4"/><path d="M24 22c0-6 3-10 8-10s8 4 8 10" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M24 25h16" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M27 31c1.2-1.5 2.8-2.2 5-2.2s3.8.7 5 2.2" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M27.5 36.5c1.7 2 3.8 3 4.5 3s2.8-1 4.5-3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M21 49h22" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg></div>
       <div>
@@ -946,24 +954,24 @@
         <small id="welcomeQuote">Competition Prep · Personal</small>
       </div>
     </div>
-    <div class="topbar-right">
+    <div class="topbar-right" id="topMenuDropdown">
       <button class="btn btn-secondary top-role-btn" id="coachTopBtn" style="display:none">
         <svg style="width:14px;height:14px;vertical-align:-2px"><use href="#i-group"/></svg> Coach
       </button>
       <button class="btn btn-secondary top-role-btn" id="adminTopBtn" style="display:none">
         <svg style="width:14px;height:14px;vertical-align:-2px"><use href="#i-bolt"/></svg> Admin
       </button>
-      <button class="icon-btn" id="helpBtn" aria-label="Tutorial" title="Tutorial" style="font-weight:800;font-size:16px">?</button>
+      <button class="icon-btn" id="helpBtn" aria-label="Tutorial" title="Tutorial" style="font-weight:800"><span style="font-size:16px">?</span><span class="menu-label">Tutorial</span></button>
       <button class="icon-btn" id="searchBtn" aria-label="Search history">
-        <svg><use href="#i-search"/></svg>
+        <svg><use href="#i-search"/></svg><span class="menu-label">Search</span>
       </button>
-      <button class="icon-btn" id="langToggle" aria-label="Toggle program language" title="Program language" style="font-weight:800;font-size:13px;letter-spacing:.5px">EN</button>
+      <button class="icon-btn" id="langToggle" aria-label="Toggle program language" title="Program language" style="font-weight:800;letter-spacing:.5px"><span style="font-size:13px">EN</span><span class="menu-label">Language</span></button>
       <button class="icon-btn theme-toggle" id="themeToggle" aria-label="Toggle theme">
         <svg class="moon"><use href="#i-moon"/></svg>
-        <svg class="sun"><use href="#i-sun"/></svg>
+        <svg class="sun"><use href="#i-sun"/></svg><span class="menu-label">Theme</span>
       </button>
       <button class="icon-btn profile-btn" id="profileBtn" aria-label="Profile">
-        <svg><use href="#i-user"/></svg>
+        <svg><use href="#i-user"/></svg><span class="menu-label">Profile</span>
       </button>
     </div>
   </div>
@@ -972,8 +980,8 @@
 <main id="main" style="display:none">
   <section class="hero reveal" id="heroSection">
     <span class="eyebrow"><span class="dot"></span> <span id="heroEyebrow">Program</span></span>
-    <h2 id="heroTitle">Welcome back.<br><span class="grad" id="heroTitleSub">Let's get to work.</span></h2>
-    <p class="lead" id="heroLead">A calendar-based plan with strength, engine, gymnastics, and recovery. Every workout is editable and synced to your account.</p>
+    <h2 id="heroTitle">Welcome back. <span class="grad" id="heroTitleSub">Let's get to work.</span></h2>
+    <p class="lead" id="heroLead" style="display:none">A calendar-based plan with strength, engine, gymnastics, and recovery. Every workout is editable and synced to your account.</p>
     <div class="stats" id="heroStats"></div>
     <div class="hero-progress">
       <div class="hp-bar"><span id="hpFill" style="width:0%"></span></div>
@@ -983,12 +991,14 @@
 
   <section class="calendar reveal">
     <div class="cal-head">
-      <button class="cal-nav" id="calPrev" aria-label="Previous week">‹</button>
       <div class="cal-range" id="calRange">—</div>
-      <button class="cal-nav" id="calNext" aria-label="Next week">›</button>
       <button class="cal-today" id="calToday">Today</button>
     </div>
-    <div class="cal-strip" id="calStrip"></div>
+    <div class="cal-strip-row">
+      <button class="cal-nav" id="calPrev" aria-label="Previous week">‹</button>
+      <div class="cal-strip" id="calStrip"></div>
+      <button class="cal-nav" id="calNext" aria-label="Next week">›</button>
+    </div>
   </section>
 
   <section class="day-detail reveal" id="dayDetail"></section>
@@ -1501,6 +1511,25 @@
   document.getElementById('themeToggle').addEventListener('click', () => {
     applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
   });
+
+  /* ============ TOP MENU DROPDOWN ============ */
+  (function(){
+    const btn = document.getElementById('topMenuBtn');
+    const dropdown = document.getElementById('topMenuDropdown');
+    if (!btn || !dropdown) return;
+    function closeMenu(){ dropdown.classList.remove('open'); btn.setAttribute('aria-expanded','false'); }
+    function toggleMenu(){
+      const open = dropdown.classList.toggle('open');
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    btn.addEventListener('click', (e) => { e.stopPropagation(); toggleMenu(); });
+    dropdown.querySelectorAll('button').forEach(b => b.addEventListener('click', () => closeMenu()));
+    document.addEventListener('click', (e) => {
+      if (!dropdown.classList.contains('open')) return;
+      if (dropdown.contains(e.target) || btn.contains(e.target)) return;
+      closeMenu();
+    });
+  })();
 
   /* ============ PROGRAM LANGUAGE (English is the default) ============ */
   // Workout text can carry an optional Hebrew translation (blocks.name_he / blocks.body_he).
@@ -2802,12 +2831,14 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
           <div>
             <div class="day-num">${isToday ? 'Today · ' : ''}${fmtDateLong(selectedKey)}</div>
             <h2>${esc(dayTitle(blocks))}</h2>
-            ${progressBadge}
-          </div>
-          <div class="day-actions">
-            ${total ? `<button class="btn-day-action primary" id="dayTimerBtn"><svg><use href="#i-clock"/></svg>Timer</button>` : ''}
-            ${finishBtn}
-            <button class="btn-day-action" id="addBlockBtn"><svg><use href="#i-plus"/></svg>Add</button>
+            <div class="day-progress-row">
+              ${progressBadge}
+              <div class="day-actions">
+                ${total ? `<button class="btn-day-action primary" id="dayTimerBtn"><svg><use href="#i-clock"/></svg>Timer</button>` : ''}
+                ${finishBtn}
+                <button class="btn-day-action" id="addBlockBtn"><svg><use href="#i-plus"/></svg>Add</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
