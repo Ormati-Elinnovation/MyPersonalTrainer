@@ -849,6 +849,8 @@
 
   @media (max-width:900px){.stats{grid-template-columns:repeat(2,1fr)}.charts{grid-template-columns:1fr}}
   @media (max-width:680px){
+    /* iOS Safari auto-zooms the whole page when a focused input's font-size is below 16px — force 16px on every text input/select/textarea to stop the "screen grows" zoom glitch */
+    input,select,textarea{font-size:16px !important}
     html,body{overflow-x:clip}
     main{padding:18px 14px 60px}
     .daily-summary-grid{grid-template-columns:1fr}
