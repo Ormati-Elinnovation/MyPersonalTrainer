@@ -2854,6 +2854,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
           </div>
         </div>
       </div>
+      ${total ? `<div class="day-extras"><button class="day-extra-btn sauna-btn ${dayState.sauna ? 'active' : ''}" data-extra="sauna">Sauna</button><button class="day-extra-btn ice-btn ${dayState.ice ? 'active' : ''}" data-extra="ice">Ice</button></div>` : ''}
       <div class="day-body">
         ${daySummary.top}
         ${blocks.length ? `<div class="blocks" id="blocksContainer"></div>` : `
