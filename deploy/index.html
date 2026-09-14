@@ -617,11 +617,12 @@
   }
   [data-theme="light"] .day-progress{background:rgba(255,255,255,.85);color:var(--blue-3)}
   .day-progress.complete{background:rgba(180,224,193,.25);border-color:rgba(180,224,193,.5);color:var(--good)}
+  .day-progress.complete .dot{background:currentColor}
   .day-progress .dot{width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.7}
 
   /* === Day Action Buttons === */
-  .day-actions{display:flex;gap:8px;flex-wrap:wrap;min-width:0;max-width:100%}
-  .day-progress-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;max-width:100%;min-width:0}
+  .day-actions{display:flex;gap:8px;flex-wrap:nowrap;min-width:0;max-width:100%;overflow:hidden}
+  .day-progress-row{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;margin-top:8px;max-width:100%;min-width:0}
   .btn-day-action{
     background:rgba(7,17,31,.55);backdrop-filter:blur(8px);color:#fff;
     border:1px solid var(--line-2);padding:5px 12px;border-radius:999px;
@@ -872,9 +873,9 @@
     .cal-strip{grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
     .day-photo{height:190px}.day-title-wrap h2{font-size:20px}.day-body{padding:18px}
     .day-photo .day-title-wrap{padding:0 16px}
-    .day-progress-row{flex-wrap:wrap;gap:6px}
+    .day-progress-row{flex-wrap:nowrap;gap:6px}
     .day-progress{flex-shrink:0;white-space:nowrap;font-size:10.5px;padding:4px 9px}
-    .day-actions{flex-wrap:wrap;gap:6px;min-width:0}
+    .day-actions{flex-wrap:nowrap;gap:6px;min-width:0;overflow:hidden}
     .btn-day-action{padding:7px 9px;font-size:11px;white-space:nowrap}
     .btn-day-action svg{width:12px;height:12px}
     .quote-banner{margin:18px 16px 0;padding:12px 14px}
@@ -2827,7 +2828,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const dayState = tkDataByDate(selectedKey);
     let progressBadge = '';
     const daySummary = buildDailySummary(selectedKey, blocks, dayState, done, total, ended);
-    if (ended) progressBadge = `<div class="day-progress complete"><span class="dot"></span>Day Ended · ${done} / ${total}</div>`;
+    if (ended) progressBadge = `<div class="day-progress complete"><span class="dot"></span>Daily ${done} / ${total}</div>`;
     else if (total) progressBadge = `<div class="day-progress ${allDone ? 'complete' : ''}"><span class="dot"></span>${done} / ${total} completed</div>`;
     let finishBtn = '';
     if (total){
