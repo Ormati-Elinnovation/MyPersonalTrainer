@@ -2849,8 +2849,8 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
           </div>
         </div>
       </div>
-      ${total ? `<div class="day-extras"><button class="day-extra-btn sauna-btn ${dayState.sauna ? 'active' : ''}" data-extra="sauna">Sauna</button><button class="day-extra-btn ice-btn ${dayState.ice ? 'active' : ''}" data-extra="ice">Ice</button></div>` : ''}
       <div class="day-body">
+        ${daySummary.top}
         ${blocks.length ? `<div class="blocks" id="blocksContainer"></div>` : `
           <div class="empty-state">
             <h3>No workouts on this day</h3>
@@ -2859,7 +2859,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
           </div>`}
       </div>
       ${total ? `<div class="day-extras"><button class="day-extra-btn sauna-btn ${dayState.sauna ? 'active' : ''}" data-extra="sauna">Sauna</button><button class="day-extra-btn ice-btn ${dayState.ice ? 'active' : ''}" data-extra="ice">Ice</button></div>` : ''}
-      <div class="day-body">${daySummary}</div>`;
+      <div class="day-body">${daySummary.bottom}</div>`;
     document.getElementById('addBlockBtn').addEventListener('click', () => openModal(null));
     const emptyBtn = document.getElementById('emptyAddBtn');
     if (emptyBtn) emptyBtn.addEventListener('click', () => openModal(null));
@@ -3827,15 +3827,18 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const quote = total && done > 0
       ? '“Small wins stacked every day become big results.”'
       : '“Consistency is the real superpower.”';
-    return `
-      <div class="summary-card full">
-        <div class="k">Today at a glance</div>
-        <div class="v"><strong>${statusText}</strong> — ${progressText}</div>
-      </div>
-      <div class="summary-card"><div class="k">What you did well</div><div class="v">${wins}</div></div>
-      <div class="summary-card"><div class="k">Where to put the focus</div><div class="v">${focus}</div></div>
-      <div class="summary-card"><div class="k">Recovery / extras</div><div class="v">${recovery}</div></div>
-      <div class="summary-card full"><div class="k">Encouragement</div><div class="v"><em>${quote}</em></div></div>`;
+    return {
+      top: `
+        <div class="summary-card full">
+          <div class="k">Today at a glance</div>
+          <div class="v"><strong>${statusText}</strong> — ${progressText}</div>
+        </div>
+        <div class="summary-card full"><div class="k">Keep building</div><div class="v"><em>${quote}</em></div></div>`,
+      bottom: `
+        <div class="summary-card"><div class="k">What you did well</div><div class="v">${wins}</div></div>
+        <div class="summary-card"><div class="k">Where to put the focus</div><div class="v">${focus}</div></div>
+        <div class="summary-card"><div class="k">Recovery / extras</div><div class="v">${recovery}</div></div>`
+    };
   }
 
   async function saveDayExtras(dateKey, state){
