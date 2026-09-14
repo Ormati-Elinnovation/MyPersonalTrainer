@@ -863,12 +863,19 @@
     .stat .v small{font-size:10px;margin-left:2px}
     .cal-head{align-items:stretch}
     .cal-range{flex-basis:100%;order:3;text-align:left}
-    .cal-strip{grid-template-columns:repeat(7,minmax(44px,1fr))}
-    .day-photo{height:170px}.day-title-wrap h2{font-size:22px}.day-body{padding:18px}
+    .cal-strip-row{gap:4px}
+    .cal-nav{width:26px;height:26px;font-size:15px;flex-shrink:0}
+    .cal-strip{grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
+    .day-photo{height:190px}.day-title-wrap h2{font-size:20px}.day-body{padding:18px}
     .day-photo .day-title-wrap{padding:0 16px}
+    .day-progress-row{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px}
+    .day-progress-row::-webkit-scrollbar{display:none}
+    .day-progress{flex-shrink:0;white-space:nowrap;font-size:10.5px;padding:4px 9px}
+    .day-actions{flex-shrink:0;flex-wrap:nowrap}
+    .btn-day-action{padding:7px 10px;font-size:11.5px;white-space:nowrap}
     .quote-banner{margin:18px 16px 0;padding:12px 14px}
     .day-body,.calendar,.day-detail,.hero{max-width:100%;min-width:0}
-    .cal-day{min-height:64px}.cal-day .num{font-size:18px}.cal-day .dow{font-size:9px}.cal-range{font-size:13px}
+    .cal-day{min-height:64px;padding:8px 2px 6px}.cal-day .num{font-size:17px}.cal-day .dow{font-size:8.5px}.cal-range{font-size:13px}
     .t-time{font-size:22px}
     .form-row.grid-2,.form-row.grid-3{grid-template-columns:1fr}
     .side-card{max-width:100%}
@@ -992,7 +999,7 @@
   <section class="calendar reveal">
     <div class="cal-head">
       <div class="cal-range" id="calRange">—</div>
-      <button class="cal-today" id="calToday">Today</button>
+      <button class="cal-today" id="calToday" style="display:none">Today</button>
     </div>
     <div class="cal-strip-row">
       <button class="cal-nav" id="calPrev" aria-label="Previous week">‹</button>
