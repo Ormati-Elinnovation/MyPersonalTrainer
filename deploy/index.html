@@ -3458,15 +3458,26 @@ ${days}
   // 3-2-1 warning before ANY timed phase runs out — work, rest, EMOM minute, AMRAP.
   // Loud and high enough to cut through a gym; same sound in every timer.
   const WARN_SECONDS = [3,2,1];
-  function warnBeep(){ beep(1000, .18, 'square', .5); }
+  function vibrateWarn(){
+    // Vibration bypasses audio entirely — always noticeable even when
+    // music is mixing with / drowning out the beep through a speaker.
+    try { navigator.vibrate && navigator.vibrate(90); } catch {}
+  }
+  function warnBeep(){
+    vibrateWarn();
+    // Two stacked tones (fundamental + octave) cut through background
+    // music better than a single sine/square tone.
+    beep(1000, .2, 'square', .6);
+    beep(2000, .16, 'square', .35);
+  }
   function renderSoundSetting(){
     const btn = document.getElementById('soundModeBtn'); if (!btn) return;
     const always = soundMode() === 'always';
     btn.textContent = always ? 'Always on' : 'Follows silent';
     const sub = document.getElementById('soundModeSub');
     if (sub) sub.textContent = always
-      ? '3-2-1 beeps before every interval ends — plays even when the phone is on silent'
-      : '3-2-1 beeps before every interval ends — muted when the phone is on silent';
+      ? '3-2-1 beeps + vibration before every interval ends — plays even when the phone is on silent'
+      : '3-2-1 beeps + vibration before every interval ends — beep muted when the phone is on silent, vibration always fires';
   }
   document.getElementById('soundModeBtn')?.addEventListener('click', () => {
     try { localStorage.setItem(SOUND_KEY, soundMode() === 'always' ? 'auto' : 'always'); } catch {}
@@ -3675,6 +3686,7 @@ ${days}
         if (raf){ clearInterval(raf); raf = null; }
         el.classList.remove('running','rest-phase'); el.classList.add('done');
         dom.play.innerHTML = PLAY; handleBeeps(); render();
+        try { navigator.vibrate && navigator.vibrate([120,80,120]); } catch {}
         beep(880,.45,'sine',.3); setTimeout(()=>beep(1320,.5,'sine',.3), 200);
         if (hasWakeLock){ hasWakeLock = false; releaseWakeLock(); }
         return;
@@ -3848,6 +3860,7 @@ ${days}
         if (this.raf){ clearInterval(this.raf); this.raf = null; }
         this.el.classList.remove('rest-phase'); this.el.classList.add('done');
         this.handleBeeps(); this.render();
+        try { navigator.vibrate && navigator.vibrate([120,80,120]); } catch {}
         beep(880,.5,'sine',.4); setTimeout(()=>beep(1320,.6,'sine',.4), 200);
         this.dom.playBtn.innerHTML = RESTART_BIG;
         if (this.hasLock){ this.hasLock = false; releaseWakeLock(); }
