@@ -153,7 +153,7 @@
   .hero h2{margin:10px 0 8px;font-size:clamp(24px,4vw,38px);font-weight:800;letter-spacing:-.4px;line-height:1.05;color:var(--ink)}
   .hero h2 .grad{background:linear-gradient(120deg,var(--blue-3),var(--cyan) 50%,var(--primary));-webkit-background-clip:text;background-clip:text;color:transparent}
   .hero p.lead{margin:0;color:var(--ink-soft);font-size:14px;max-width:680px}
-  .stats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin-top:14px}
+  .stats{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;margin-top:14px}
   .stat{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;overflow:hidden;min-width:0}
   .stat::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;background:linear-gradient(90deg,transparent,var(--blue),transparent);opacity:.5}
   .stat .k{color:var(--muted);font-size:10px;font-weight:500;letter-spacing:1.1px;text-transform:uppercase;font-family:'Space Grotesk'}
@@ -885,6 +885,7 @@
     .topbar .inner{padding:8px 14px;gap:8px}
     .hero{padding:26px 22px}
     .stats{grid-template-columns:repeat(3,1fr);gap:6px}
+    .stats .stat:last-child:nth-child(3n+1){grid-column:span 3}
     .stat{padding:8px 6px;text-align:center;border-radius:10px}
     .stat .k{font-size:9px;letter-spacing:.6px}
     .stat .v{font-size:17px;margin-top:1px}
@@ -2788,11 +2789,17 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       return acc;
     }, { sauna: 0, ice: 0 });
 
-    // Workouts this week: a day counts once it's finished (Finish Day) or every block is done
-    const weekWorkouts = weekDateKeys.filter(k => {
+    // A day counts once it's finished (Finish Day) or every block is done.
+    // Rest days (only rest/recovery blocks) go to the Rest tile, not to Workouts.
+    const isRestDay = bl => bl.length && bl.every(b => b.icon === 'i-rest' || /\brest\b/i.test(b.cat || ''));
+    const isDayDone = (k, bl) => bl.length && (finishedDates.has(k) || bl.every(b => tkData[b.id]?.done));
+    let weekWorkouts = 0, weekRest = 0;
+    weekDateKeys.forEach(k => {
       const bl = PROGRAM[k] || [];
-      return bl.length && (finishedDates.has(k) || bl.every(b => tkData[b.id]?.done));
-    }).length;
+      if (!isDayDone(k, bl)) return;
+      if (isRestDay(bl)) weekRest++; else weekWorkouts++;
+    });
+    const restCls = weekRest > 2 ? 'warn' : weekRest >= 1 ? 'good' : '';
 
     stats.innerHTML = `
       <div class="stat ${weekDone === weekBlocks.length && weekBlocks.length ? 'good' : ''}">
@@ -2812,6 +2819,9 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       </div>
       <div class="stat ${weekWorkouts >= 7 ? 'good' : ''}">
         <div class="k">Workouts</div><div class="v">${weekWorkouts}<small>/7</small></div>
+      </div>
+      <div class="stat ${restCls}" title="Healthy target: 1–2 rest days a week">
+        <div class="k">Rest</div><div class="v">${weekRest}<small>/2</small></div>
       </div>`;
 
     if (hpFill) hpFill.style.width = pct + '%';
