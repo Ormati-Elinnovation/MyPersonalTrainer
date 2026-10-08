@@ -2792,12 +2792,17 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     // A day counts once it's finished (Finish Day) or every block is done.
     // Rest days (only rest/recovery blocks) go to the Rest tile, not to Workouts.
     const isRestDay = bl => bl.length && bl.every(b => b.icon === 'i-rest' || /\brest\b/i.test(b.cat || ''));
-    const isDayDone = (k, bl) => bl.length && (finishedDates.has(k) || bl.every(b => tkData[b.id]?.done));
+    // Workout day = Finish Day pressed OR at least one block done (the body worked).
+    // Rest = a planned rest day that's finished/past, OR a past training day with nothing logged.
     let weekWorkouts = 0, weekRest = 0;
     weekDateKeys.forEach(k => {
       const bl = PROGRAM[k] || [];
-      if (!isDayDone(k, bl)) return;
-      if (isRestDay(bl)) weekRest++; else weekWorkouts++;
+      if (!bl.length) return;
+      const anyDone = bl.some(b => tkData[b.id]?.done);
+      const fin = finishedDates.has(k);
+      if (isRestDay(bl)){ if (fin || anyDone || k < today) weekRest++; return; }
+      if (fin || anyDone) weekWorkouts++;
+      else if (k < today) weekRest++;
     });
     const restCls = (weekRest >= 1 && weekRest <= 2) ? 'good' : '';
 
@@ -4151,7 +4156,14 @@ ${days}
     renderList();
     function addResult(v){
       if (!v) return;
-      state.results.push(v); saveTrackerForBlock(key, state); renderList();
+      state.results.push(v);
+      // Logging any result means the block was worked → mark it done automatically
+      if (!state.done){
+        state.done = true; toggle.checked = true; label.textContent = 'Done ✓';
+        block.classList.add('done');
+        setTimeout(() => { updateDayProgress(); renderCalendar(); renderHeroStats(); }, 0);
+      }
+      saveTrackerForBlock(key, state); renderList();
       // First result on an unlabeled block → persist the inferred type so leaderboards can rank it.
       if (b && !b.score_type && scoreType){
         b.score_type = scoreType === 'rounds' ? 'reps' : scoreType; b.score_dir = scoreType === 'time' ? 'low' : 'high';
