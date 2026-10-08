@@ -153,7 +153,7 @@
   .hero h2{margin:10px 0 8px;font-size:clamp(24px,4vw,38px);font-weight:800;letter-spacing:-.4px;line-height:1.05;color:var(--ink)}
   .hero h2 .grad{background:linear-gradient(120deg,var(--blue-3),var(--cyan) 50%,var(--primary));-webkit-background-clip:text;background-clip:text;color:transparent}
   .hero p.lead{margin:0;color:var(--ink-soft);font-size:14px;max-width:680px}
-  .stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:14px}
+  .stats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin-top:14px}
   .stat{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;overflow:hidden;min-width:0}
   .stat::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;background:linear-gradient(90deg,transparent,var(--blue),transparent);opacity:.5}
   .stat .k{color:var(--muted);font-size:10px;font-weight:500;letter-spacing:1.1px;text-transform:uppercase;font-family:'Space Grotesk'}
@@ -2788,6 +2788,12 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       return acc;
     }, { sauna: 0, ice: 0 });
 
+    // Workouts this week: a day counts once it's finished (Finish Day) or every block is done
+    const weekWorkouts = weekDateKeys.filter(k => {
+      const bl = PROGRAM[k] || [];
+      return bl.length && (finishedDates.has(k) || bl.every(b => tkData[b.id]?.done));
+    }).length;
+
     stats.innerHTML = `
       <div class="stat ${weekDone === weekBlocks.length && weekBlocks.length ? 'good' : ''}">
         <div class="k">This Week</div><div class="v">${weekDone}<small>/ ${weekBlocks.length}</small></div>
@@ -2803,6 +2809,9 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       </div>
       <div class="stat">
         <div class="k">Sauna / Ice</div><div class="v"><span style="color:var(--danger)">${saunaIce.sauna}</span><small> / </small><span style="color:var(--cyan)">${saunaIce.ice}</span></div>
+      </div>
+      <div class="stat ${weekWorkouts >= 7 ? 'good' : ''}">
+        <div class="k">Workouts</div><div class="v">${weekWorkouts}<small>/7</small></div>
       </div>`;
 
     if (hpFill) hpFill.style.width = pct + '%';
@@ -3974,7 +3983,7 @@ ${days}
       });
       if (error) throw error;
       finishedDates.add(selectedKey);
-      renderDayDetail(); renderCalendar(); updateArchiveBadge();
+      renderDayDetail(); renderCalendar(); updateArchiveBadge(); renderHeroStats();
     } catch(e){
       alert('Could not end day: ' + (e.message || e));
     } finally {
@@ -3988,7 +3997,7 @@ ${days}
       const { error } = await sb.from('day_finished').delete().eq('user_id', activeUserId()).eq('date', dateKey);
       if (error) throw error;
       finishedDates.delete(dateKey);
-      renderDayDetail(); renderCalendar(); updateArchiveBadge();
+      renderDayDetail(); renderCalendar(); updateArchiveBadge(); renderHeroStats();
       const sideOpen = document.getElementById('sidePanel').classList.contains('open');
       if (sideOpen) renderArchive();
     } catch(e){ alert('Could not reopen day: ' + (e.message || e)); }
@@ -4021,11 +4030,7 @@ ${days}
       : '“Consistency is the real superpower.”';
     return {
       top: `
-        <div class="summary-card full">
-          <div class="k">Today at a glance</div>
-          <div class="v"><strong>${statusText}</strong> — ${progressText}</div>
-        </div>
-        <div class="summary-card full"><div class="k">Keep building</div><div class="v"><em>${quote}</em></div></div>`,
+        <div class="summary-card full"><div class="k">Keep building</div><div class="v"><strong>${quote}</strong></div></div>`,
       bottom: `
         <div class="summary-card"><div class="k">What you did well</div><div class="v">${wins}</div></div>
         <div class="summary-card"><div class="k">Where to put the focus</div><div class="v">${focus}</div></div>
@@ -5094,7 +5099,7 @@ ${days}
       .on('postgres_changes', { event: '*', schema: 'public', table: 'videos'  }, scheduleReload)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'day_finished' }, async () => {
         finishedDates = await loadFinishedDates();
-        renderCalendar(); renderDayDetail(); updateArchiveBadge();
+        renderCalendar(); renderDayDetail(); updateArchiveBadge(); renderHeroStats();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'programs' }, async () => {
         programs = await loadPrograms();
