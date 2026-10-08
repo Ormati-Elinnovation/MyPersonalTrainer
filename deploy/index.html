@@ -153,7 +153,7 @@
   .hero h2{margin:10px 0 8px;font-size:clamp(24px,4vw,38px);font-weight:800;letter-spacing:-.4px;line-height:1.05;color:var(--ink)}
   .hero h2 .grad{background:linear-gradient(120deg,var(--blue-3),var(--cyan) 50%,var(--primary));-webkit-background-clip:text;background-clip:text;color:transparent}
   .hero p.lead{margin:0;color:var(--ink-soft);font-size:14px;max-width:680px}
-  .stats{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;margin-top:14px}
+  .stats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin-top:14px}
   .stat{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;overflow:hidden;min-width:0}
   .stat::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;background:linear-gradient(90deg,transparent,var(--blue),transparent);opacity:.5}
   .stat .k{color:var(--muted);font-size:10px;font-weight:500;letter-spacing:1.1px;text-transform:uppercase;font-family:'Space Grotesk'}
@@ -2799,7 +2799,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       if (!isDayDone(k, bl)) return;
       if (isRestDay(bl)) weekRest++; else weekWorkouts++;
     });
-    const restCls = weekRest > 2 ? 'warn' : weekRest >= 1 ? 'good' : '';
+    const restCls = (weekRest >= 1 && weekRest <= 2) ? 'good' : '';
 
     stats.innerHTML = `
       <div class="stat ${weekDone === weekBlocks.length && weekBlocks.length ? 'good' : ''}">
@@ -2807,9 +2807,6 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       </div>
       <div class="stat ${pct >= 75 ? 'good' : ''}">
         <div class="k">Progress</div><div class="v">${pct}<small>%</small></div>
-      </div>
-      <div class="stat ${pastNotDone > 0 ? 'warn' : 'good'}">
-        <div class="k">Missed</div><div class="v">${pastNotDone}</div>
       </div>
       <div class="stat ${streak >= 3 ? 'good' : ''}">
         <div class="k">Streak</div><div class="v">${streak}<small>day${streak === 1 ? '' : 's'}</small></div>
