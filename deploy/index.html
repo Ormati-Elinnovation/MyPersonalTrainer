@@ -1099,8 +1099,7 @@
         <option value="">Free text (no scoring)</option>
         <option value="weight">Weight — kg (higher is better)</option>
         <option value="time">For time — mm:ss (lower is better)</option>
-        <option value="rounds">Rounds + reps — AMRAP / metcon (higher is better)</option>
-        <option value="reps">Reps (higher is better)</option>
+        <option value="reps">Reps / rounds — AMRAP &amp; metcons log Rounds + Reps (higher is better)</option>
       </select><span class="hint">Determines the result input &amp; how the leaderboard ranks it.</span></label></div>
       <div class="form-row"><label>Timer Type<select name="timerMode" id="timerMode">
         <option value="">No timer</option><option value="stopwatch">Stopwatch (count up)</option>
@@ -3377,8 +3376,7 @@ ${days}
     const tm = b && b.timer && b.timer.m;
     if (/\bfor time\b|\brft\b|rounds for time|\brun\b|\brow\b|\bsprint\b|chipper|metcon|\bmurph\b|\bfran\b|\bgrace\b|\bhelen\b|\bisabel\b|\bdiane\b|\bannie\b/.test(t)) return 'time';
     if (tm === 'stopwatch') return 'time';
-    if (/\bamrap\b|as many rounds|rounds ?\+ ?reps|\bcindy\b/.test(t)) return 'rounds';
-    if (/as many|max reps|max effort|unbroken|\bmax\b/.test(t)) return 'reps';
+    if (/\bamrap\b|as many|max reps|max effort|unbroken|rounds ?\+ ?reps|\bcindy\b|\bmax\b/.test(t)) return 'reps';
     if (tm === 'countdown') return 'reps';
     if (/@\s*\d|\d+\s*kg|\d+\s*lb|1rm|\b\d\s*rm\b|%|\bsnatch\b|clean|jerk|squat|deadlift|press|bench|thruster/.test(t)) return 'weight';
     if (tm === 'emom' || tm === 'interval') return 'time';
@@ -4048,7 +4046,7 @@ ${days}
   function injectTracker(block, key, b){
     let scoreType = inferScoreType(b);   // explicit, or auto-detected from the workout
     // Metcon / AMRAP scored in reps → log rounds + reps separately (no mental maths)
-    if (scoreType === 'reps' && (/metcon|conditioning/i.test(b?.cat || '') || /\bamrap\b|\bemom\b/i.test((b?.name||'') + ' ' + (b?.body||'')))) scoreType = 'rounds';
+    if (scoreType === 'reps' && (/metcon|conditioning/i.test(b?.cat || '') || /\bamrap\b|\bemom\b|as many rounds|\bcindy\b/i.test((b?.name||'') + ' ' + (b?.body||'')))) scoreType = 'rounds';
     const state = tkData[key] = Object.assign({ done:false, notes:'', results:[], sauna:false, ice:false }, tkData[key] || {});
     let addHtml;
     if (scoreType === 'weight'){
@@ -4144,7 +4142,7 @@ ${days}
       state.results.push(v); saveTrackerForBlock(key, state); renderList();
       // First result on an unlabeled block → persist the inferred type so leaderboards can rank it.
       if (b && !b.score_type && scoreType){
-        b.score_type = scoreType; b.score_dir = scoreType === 'time' ? 'low' : 'high';
+        b.score_type = scoreType === 'rounds' ? 'reps' : scoreType; b.score_dir = scoreType === 'time' ? 'low' : 'high';
         sb.from('blocks').update({ score_type: b.score_type, score_dir: b.score_dir }).eq('id', key).then(()=>{});
       }
     }
