@@ -1099,7 +1099,8 @@
         <option value="">Free text (no scoring)</option>
         <option value="weight">Weight — kg (higher is better)</option>
         <option value="time">For time — mm:ss (lower is better)</option>
-        <option value="reps">Reps / rounds (higher is better)</option>
+        <option value="rounds">Rounds + reps — AMRAP / metcon (higher is better)</option>
+        <option value="reps">Reps (higher is better)</option>
       </select><span class="hint">Determines the result input &amp; how the leaderboard ranks it.</span></label></div>
       <div class="form-row"><label>Timer Type<select name="timerMode" id="timerMode">
         <option value="">No timer</option><option value="stopwatch">Stopwatch (count up)</option>
@@ -3376,7 +3377,8 @@ ${days}
     const tm = b && b.timer && b.timer.m;
     if (/\bfor time\b|\brft\b|rounds for time|\brun\b|\brow\b|\bsprint\b|chipper|metcon|\bmurph\b|\bfran\b|\bgrace\b|\bhelen\b|\bisabel\b|\bdiane\b|\bannie\b/.test(t)) return 'time';
     if (tm === 'stopwatch') return 'time';
-    if (/\bamrap\b|as many|max reps|max effort|unbroken|rounds ?\+ ?reps|\bcindy\b|\bmax\b/.test(t)) return 'reps';
+    if (/\bamrap\b|as many rounds|rounds ?\+ ?reps|\bcindy\b/.test(t)) return 'rounds';
+    if (/as many|max reps|max effort|unbroken|\bmax\b/.test(t)) return 'reps';
     if (tm === 'countdown') return 'reps';
     if (/@\s*\d|\d+\s*kg|\d+\s*lb|1rm|\b\d\s*rm\b|%|\bsnatch\b|clean|jerk|squat|deadlift|press|bench|thruster/.test(t)) return 'weight';
     if (tm === 'emom' || tm === 'interval') return 'time';
@@ -4044,11 +4046,20 @@ ${days}
   }
 
   function injectTracker(block, key, b){
-    const scoreType = inferScoreType(b);   // explicit, or auto-detected from the workout
+    let scoreType = inferScoreType(b);   // explicit, or auto-detected from the workout
+    // Metcon / AMRAP scored in reps → log rounds + reps separately (no mental maths)
+    if (scoreType === 'reps' && (/metcon|conditioning/i.test(b?.cat || '') || /\bamrap\b|\bemom\b/i.test((b?.name||'') + ' ' + (b?.body||'')))) scoreType = 'rounds';
     const state = tkData[key] = Object.assign({ done:false, notes:'', results:[], sauna:false, ice:false }, tkData[key] || {});
     let addHtml;
     if (scoreType === 'weight'){
       addHtml = `<form class="tk-add"><input type="number" step="0.5" inputmode="decimal" placeholder="Weight (kg)" /><button type="submit" class="tk-ok" data-mark="ok" aria-label="Made lift" title="Made it">✓</button><button type="submit" class="tk-fail" data-mark="fail" aria-label="Missed lift" title="Missed">✗</button><button type="button" class="tk-repeat-last" title="Repeat last weight">↺ Same</button></form>`;
+    } else if (scoreType === 'rounds'){
+      addHtml = `<form class="tk-add tk-rounds">
+          <input class="tk-rd" type="number" min="0" step="1" inputmode="numeric" placeholder="Rounds" />
+          <span style="align-self:center;font-weight:700">+</span>
+          <input class="tk-rp" type="number" min="0" step="1" inputmode="numeric" placeholder="Reps" />
+          <button type="submit" aria-label="Add">+</button>
+        </form>`;
     } else if (scoreType === 'reps'){
       addHtml = `<form class="tk-add"><input type="number" step="1" inputmode="numeric" placeholder="Reps / rounds" /><button type="submit" aria-label="Add">+</button></form>`;
     } else if (scoreType === 'time'){
@@ -4137,7 +4148,16 @@ ${days}
         sb.from('blocks').update({ score_type: b.score_type, score_dir: b.score_dir }).eq('id', key).then(()=>{});
       }
     }
-    if (scoreType === 'time'){
+    if (scoreType === 'rounds'){
+      const rf = tracker.querySelector('.tk-add.tk-rounds');
+      const rd = rf.querySelector('.tk-rd'), rp = rf.querySelector('.tk-rp');
+      rf.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const R = parseInt(rd.value,10)||0, P = parseInt(rp.value,10)||0;
+        if (!R && !P) return;
+        addResult(formatRounds(R, P)); rd.value=''; rp.value='';
+      });
+    } else if (scoreType === 'time'){
       const timeForm = tracker.querySelector('.tk-add.tk-time');
       const mm = timeForm.querySelector('.tk-mm'), ss = timeForm.querySelector('.tk-ss');
       timeForm.addEventListener('submit', (e) => {
@@ -5925,10 +5945,21 @@ ${days}
   function resultText(r){ return String(r ?? '').replace(new RegExp(`\\s*[${MARK_OK}${MARK_FAIL}]$`), ''); }
   function isFailedResult(r){ return resultMark(r) === 'fail'; }
 
+  // AMRAP result: "6 rounds + 10 reps" (rounds or reps may be 0/omitted)
+  function formatRounds(R, P){
+    if (R && P) return `${R} rounds + ${P} reps`;
+    return R ? `${R} round${R===1?'':'s'}` : `${P} reps`;
+  }
+  function parseRounds(s){
+    const r = s.match(/(\d+)\s*rounds?/i), p = s.match(/(\d+)\s*reps?/i);
+    if (!r) return null;
+    return (+r[1]) * 1000 + (p ? +p[1] : 0);   // rank by rounds, then extra reps
+  }
   function parseScore(str){
     if (str == null) return null;
     if (isFailedResult(str)) return null;   // missed lifts never count as a score / PR
     const s = String(str);
+    const rr = parseRounds(s); if (rr != null) return rr;
     const tm = s.match(/(\d+):(\d{2})/);          // mm:ss -> seconds
     if (tm) return (+tm[1])*60 + (+tm[2]);
     const nm = s.match(/-?\d+(?:\.\d+)?/);          // first plain number
