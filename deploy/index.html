@@ -251,7 +251,8 @@
   .block .icon svg{width:22px;height:22px}
   /* block category icon removed (Or) — buttons stay right-aligned */
   .block > .block-head > .icon{display:none}
-  .block > .block-head{justify-content:flex-end}
+  .block > .block-head{justify-content:space-between;align-items:center;margin-bottom:10px}
+  .block > .block-head > h4{margin:0;line-height:1.2;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .block-edit{background:var(--panel-2);border:1px solid var(--line);color:var(--ink-soft);padding:6px 10px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:5px;transition:.2s;font-family:'Inter'}
   .block-edit:hover{background:var(--panel);border-color:var(--line-2);color:var(--ink)}
   .block-edit svg{width:13px;height:13px}
@@ -3414,12 +3415,12 @@ ${days}
     el.innerHTML = `
       <div class="block-head">
         <div class="icon"><svg><use href="#${esc(b.icon)}"/></svg></div>
-        <div style="display:flex;gap:6px">
+        <h4>${esc(b.cat)}</h4>
+        <div style="display:flex;gap:6px;flex-shrink:0">
           <button class="block-edit block-lb"><svg><use href="#i-group"/></svg>Leaderboard</button>
           <button class="block-edit"><svg><use href="#i-edit"/></svg>Edit</button>
         </div>
       </div>
-      <h4>${esc(b.cat)}</h4>
       <div class="name" dir="auto">${esc(tName(b))}</div>
       <div class="body" dir="auto">${linkify(esc(tBody(b)))}</div>
       ${timerHTML(b.timer)}
