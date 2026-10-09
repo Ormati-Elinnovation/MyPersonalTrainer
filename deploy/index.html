@@ -594,6 +594,20 @@
   .pr-card .pr-name{font-size:12px;font-weight:700;color:var(--ink);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .pr-card .pr-val{font-size:18px;font-weight:800;color:var(--blue-3);font-family:'Space Grotesk'}
   .pr-card .pr-date{font-size:11px;color:var(--muted);margin-top:2px}
+  .pr-card.atpr{cursor:pointer;transition:border-color .15s,transform .15s}
+  .pr-card.atpr:hover{border-color:var(--blue-3);transform:translateY(-1px)}
+  .pr-card.atpr .pr-val{font-size:22px}
+  .pr-card .pr-new{display:inline-block;margin-left:6px;font-size:10px;font-weight:800;color:var(--good);letter-spacing:.6px;text-transform:uppercase}
+  .atpr-edit{font-size:12px;padding:6px 12px}
+  .prc-wrap{max-width:900px;margin:0 auto;width:100%}
+  .prc-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:14px}
+  .prc-chart{position:relative;height:320px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px}
+  .prc-hist{margin-top:16px}
+  .prc-hist table{width:100%;border-collapse:collapse;font-size:13px}
+  .prc-hist td,.prc-hist th{padding:7px 8px;border-bottom:1px solid var(--line);text-align:left}
+  .prc-hist th{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:1px}
+  .pr-toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);background:var(--good);color:#0b1a12;font-weight:800;padding:12px 20px;border-radius:999px;box-shadow:0 10px 30px rgba(0,0,0,.35);opacity:0;pointer-events:none;transition:all .3s;z-index:90;font-family:'Space Grotesk'}
+  .pr-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   .reminder-toggle{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-soft);cursor:pointer;user-select:none}
   .reminder-toggle input{accent-color:var(--blue-3)}
   .charts-wrap{display:none}
@@ -1051,6 +1065,12 @@
   <section class="weekly-table reveal" id="weeklyTable"></section>
 
   <div class="section-head reveal" style="margin-top:24px">
+    <h3>All-time PRs</h3>
+    <button class="btn atpr-edit" id="atprEditBtn" type="button">Edit PRs</button>
+  </div>
+  <section class="pr-wrap reveal" id="allTimePrSection"></section>
+
+  <div class="section-head reveal" style="margin-top:24px">
     <h3>Recent Bests</h3>
     <span class="sub">Auto-detected from your logged workout results</span>
   </div>
@@ -1396,6 +1416,15 @@
   </div>
   <div class="cd-body" id="genericDashBody"></div>
 </div>
+
+<div class="coach-dash" id="prChartDash" aria-hidden="true">
+  <div class="cd-head">
+    <h2><svg style="width:20px;height:20px;vertical-align:-3px"><use href="#i-barbell"/></svg> <span id="prChartTitle">PR</span></h2>
+    <button class="modal-close" id="prChartClose" aria-label="Close">×</button>
+  </div>
+  <div class="cd-body" id="prChartBody"></div>
+</div>
+<div class="pr-toast" id="prToast"></div>
 
 <!-- 5-second countdown overlay -->
 <div class="countdown-overlay" id="countdownOverlay" aria-hidden="true">
@@ -2213,6 +2242,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     weekStart = startOfWeek(selectedKey);
     finishedDates = await loadFinishedDates();
     renderCalendar(); renderDayDetail(); renderProgramsList();
+    loadAllTimePrs();
   }
 
   /* ============ AUTH ============ */
@@ -4168,6 +4198,7 @@ ${days}
         setTimeout(() => { updateDayProgress(); renderCalendar(); renderHeroStats(); }, 0);
       }
       saveTrackerForBlock(key, state); renderList();
+      if (b) maybeAutoPr(b, v);
       // First result on an unlabeled block → persist the inferred type so leaderboards can rank it.
       if (b && !b.score_type && scoreType){
         b.score_type = scoreType === 'rounds' ? 'reps' : scoreType; b.score_dir = scoreType === 'time' ? 'low' : 'high';
@@ -5325,9 +5356,146 @@ ${days}
     }
   }
 
+  /* ====================== ALL-TIME PRs (home + chart + auto-update) ====================== */
+  let ALLTIME_PRS = {};   // name -> { value, unit, recorded_at, category, history:[...] }
+  const PR_ALIASES = {
+    'squat clean':'Clean', 'squat clean & jerk':'Clean & Jerk', 'squat clean and jerk':'Clean & Jerk', 'clean and jerk':'Clean & Jerk',
+    'dead lift':'Deadlift', 'bench':'Bench Press', 'power clean and jerk':'Power Clean & Jerk', 'power clean + jerk':'Power Clean & Jerk',
+    'hang power clean':'Hang Power Clean', 'split jerk':'Jerk', 'squat snatch':'Snatch'
+  };
+  function prKey(n){ return String(n||'').toLowerCase().replace(/\s+/g,' ').replace(/\s*\+\s*/g,' + ').trim(); }
+  // Block name → canonical PR lift name, only for plain single lifts ("Back Squat · 5x5", "Snatch — 5×2 @ 80%").
+  function prLiftForBlock(b){
+    let n = String((b && b.name) || '').split(/\s[—–·|(]\s?|\s-\s|:/)[0];
+    n = n.replace(/\b\d+\s*[x×]\s*\d+.*$/i,'').replace(/\(.*$/,'').trim();
+    const k = prKey(n); if (!k) return null;
+    if (PR_ALIASES[k]) return PR_ALIASES[k];
+    const all = Object.keys(ALLTIME_PRS).concat(PR_DEFS.weightlifting, PR_DEFS.powerlifting);
+    return all.find(x => prKey(x) === k) || null;
+  }
+  async function loadAllTimePrs(){
+    const uid = activeUserId(); if (!uid) return;
+    const { data, error } = await sb.from('crossfit_prs').select('*').eq('user_id', uid)
+      .in('category', ['weightlifting','powerlifting']).order('recorded_at', { ascending:true, nullsFirst:true }).order('created_at', { ascending:true });
+    if (error){ console.warn('PR load', error); return; }
+    const out = {};
+    (data||[]).forEach(r => {
+      if (r.value == null) return;
+      const o = out[r.name] ??= { name:r.name, category:r.category, unit:r.unit, history:[] };
+      o.history.push(r);
+      // all-time = best ever logged (not just most recent)
+      if (o.value == null || +r.value >= +o.value){ o.value = +r.value; o.recorded_at = r.recorded_at; o.unit = r.unit; o.notes = r.notes; }
+    });
+    ALLTIME_PRS = out;
+    renderAllTimePrs();
+  }
+  const PR_ORDER = ['Snatch','Clean & Jerk','Clean','Jerk','Power Clean & Jerk','Hang Power Clean','Power Clean','Power Snatch','Push Press','Back Squat','Front Squat','Overhead Squat','Deadlift','Bench Press'];
+  function renderAllTimePrs(){
+    const wrap = document.getElementById('allTimePrSection'); if (!wrap) return;
+    const items = Object.values(ALLTIME_PRS).sort((a,b) => {
+      const ia = PR_ORDER.indexOf(a.name), ib = PR_ORDER.indexOf(b.name);
+      return (ia<0?99:ia) - (ib<0?99:ib) || a.name.localeCompare(b.name);
+    });
+    if (!items.length){
+      wrap.innerHTML = `<div class="pr-empty">No all-time PRs yet. Tap <b>Edit PRs</b> to add your best lifts — they'll update automatically when you beat them in a workout.</div>`;
+      return;
+    }
+    const recent = Date.now() - 14*864e5;
+    wrap.innerHTML = items.map(p => {
+      const isNew = p.recorded_at && /auto/i.test(p.notes||'') && parseKey(p.recorded_at).getTime() >= recent;
+      return `<div class="pr-card atpr" data-pr="${esc(p.name)}" title="Tap for progress chart">
+        <div class="pr-name">${esc(p.name)}${isNew ? '<span class="pr-new">🎉 New</span>' : ''}</div>
+        <div class="pr-val">${esc(fmtNum(p.value))} <small style="font-size:12px;color:var(--muted)">${esc(p.unit||'kg')}</small></div>
+        <div class="pr-date">${p.recorded_at ? esc(fmtDateShort(p.recorded_at)) : '&nbsp;'}</div>
+      </div>`;
+    }).join('');
+    wrap.querySelectorAll('.atpr').forEach(c => c.addEventListener('click', () => openPrChart(c.dataset.pr)));
+  }
+  function fmtNum(v){ const n = +v; return Number.isInteger(n) ? String(n) : String(+n.toFixed(2)); }
+  function showPrToast(msg){
+    const t = document.getElementById('prToast'); if (!t) return;
+    t.textContent = msg; t.classList.add('show');
+    clearTimeout(showPrToast._t); showPrToast._t = setTimeout(() => t.classList.remove('show'), 3500);
+  }
+  async function maybeAutoPr(b, v){
+    if (resultMark(v) !== 'ok') return;                 // only made (✓) lifts count
+    const lift = prLiftForBlock(b); if (!lift) return;
+    const val = parseFloat(resultText(v)); if (!(val > 0)) return;
+    const cur = ALLTIME_PRS[lift];
+    if (cur && (cur.unit||'kg') !== 'kg') return;
+    if (cur && val <= +cur.value) return;
+    const category = PR_DEFS.powerlifting.includes(lift) ? 'powerlifting' : 'weightlifting';
+    const { error } = await sb.from('crossfit_prs').insert({ user_id: activeUserId(), category, name: lift, value: val, unit:'kg', recorded_at: b.date || selectedKey || todayKey(), notes: 'auto: from workout' });
+    if (error){ console.warn('auto PR', error); return; }
+    showPrToast(`🎉 New PR — ${lift} ${fmtNum(val)} kg${cur ? ` (was ${fmtNum(cur.value)})` : ''}`);
+    loadAllTimePrs();
+  }
+  let prChart;
+  async function openPrChart(name){
+    const el = document.getElementById('prChartDash');
+    document.getElementById('prChartTitle').textContent = name;
+    el.classList.add('open'); el.setAttribute('aria-hidden','false');
+    const body = document.getElementById('prChartBody');
+    body.innerHTML = `<div class="search-empty">Loading…</div>`;
+    const uid = activeUserId();
+    const [bRes, tRes] = await Promise.all([
+      sb.from('blocks').select('id, date, name').eq('user_id', uid).order('date'),
+      sb.from('tracker').select('block_id, results').eq('user_id', uid)
+    ]);
+    if (bRes.error || tRes.error){ body.innerHTML = `<div class="search-empty">Could not load history.</div>`; return; }
+    const res = Object.fromEntries((tRes.data||[]).map(r => [r.block_id, r.results || []]));
+    const perDate = {};
+    (bRes.data||[]).forEach(b => {
+      if (prLiftForBlock(b) !== name) return;
+      (res[b.id]||[]).forEach(r => {
+        if (isFailedResult(r)) return;
+        const n = parseFloat(resultText(r)); if (!(n > 0)) return;
+        if (!/kg|^\s*\d/.test(String(r))) return;
+        if (!perDate[b.date] || n > perDate[b.date]) perDate[b.date] = n;
+      });
+    });
+    const p = ALLTIME_PRS[name] || {};
+    const pts = Object.entries(perDate).sort((a,b) => a[0] < b[0] ? -1 : 1);
+    const best = pts.reduce((m,[,v]) => Math.max(m,v), 0);
+    const pct = p.value && best ? Math.round(best / p.value * 100) : null;
+    body.innerHTML = `<div class="prc-wrap">
+      <div class="prc-stats">
+        <div class="stat good"><div class="k">All-time PR</div><div class="v">${p.value!=null ? fmtNum(p.value) : '—'}<small>kg</small></div></div>
+        <div class="stat"><div class="k">Best in app</div><div class="v">${best ? fmtNum(best) : '—'}<small>kg</small></div></div>
+        <div class="stat"><div class="k">% of PR</div><div class="v">${pct!=null ? pct : '—'}<small>%</small></div></div>
+      </div>
+      ${pts.length ? `<div class="prc-chart"><canvas id="prChartCanvas"></canvas></div>`
+                   : `<div class="pr-empty">No logged ${esc(name)} sessions yet. Log a weight with ✓ on a ${esc(name)} block and it'll appear here.</div>`}
+      ${(p.history||[]).length ? `<div class="prc-hist"><h4 style="margin:0 0 6px">PR history</h4><table><tr><th>Date</th><th>Weight</th><th>Source</th></tr>
+        ${p.history.slice().reverse().map(h => `<tr><td>${h.recorded_at ? esc(fmtDateShort(h.recorded_at)) : '—'}</td><td><b>${esc(fmtNum(h.value))}</b> ${esc(h.unit||'kg')}</td><td>${/auto/i.test(h.notes||'') ? 'Workout' : 'Entered'}</td></tr>`).join('')}
+      </table></div>` : ''}
+    </div>`;
+    if (!pts.length) return;
+    await window._lazyLib.chart();
+    const c = chartColors();
+    if (prChart) prChart.destroy();
+    const labels = pts.map(([d]) => fmtDateShort(d));
+    const datasets = [{ label: 'Top set', data: pts.map(([,v]) => v), borderColor:'#6fa8e0', backgroundColor:'rgba(111,168,224,.18)', fill:true, tension:.3, pointRadius:4, pointHoverRadius:6 }];
+    if (p.value != null) datasets.push({ label: `All-time PR ${fmtNum(p.value)} kg`, data: pts.map(() => p.value), borderColor:'#5fa97a', borderDash:[6,5], borderWidth:2, pointRadius:0, fill:false });
+    prChart = new Chart(document.getElementById('prChartCanvas').getContext('2d'), {
+      type:'line', data:{ labels, datasets },
+      options:{ responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{ labels:{ color:c.soft, boxWidth:12 } },
+          tooltip:{ backgroundColor:c.tooltipBg, titleColor:c.ink, bodyColor:c.ink, callbacks:{ label: ctx => `${ctx.dataset.label.startsWith('All') ? 'PR' : 'Top set'}: ${ctx.parsed.y} kg` } } },
+        scales:{ y:{ grid:{color:c.grid}, ticks:{ color:c.tick, callback:v => v+' kg' } }, x:{ grid:{display:false}, ticks:{ color:c.tick, maxRotation:0, autoSkip:true } } } }
+    });
+  }
+  document.getElementById('prChartClose').addEventListener('click', () => {
+    const el = document.getElementById('prChartDash'); el.classList.remove('open'); el.setAttribute('aria-hidden','true');
+  });
+  document.getElementById('atprEditBtn').addEventListener('click', () => {
+    openSidePanel();
+    const btn = document.querySelector('.side-nav button[data-stab="prs"]'); if (btn) btn.click();
+  });
+
   /* ====================== PRs & BENCHMARKS ====================== */
   const PR_DEFS = {
-    weightlifting: ['Snatch','Clean & Jerk','Clean','Jerk','Power Snatch','Power Clean','Front Squat','Overhead Squat'],
+    weightlifting: ['Snatch','Clean & Jerk','Clean','Jerk','Power Snatch','Power Clean','Hang Power Clean','Power Clean & Jerk','Push Press','Front Squat','Overhead Squat'],
     powerlifting:  ['Back Squat','Bench Press','Deadlift'],
     benchmark:     ['Fran','Grace','Isabel','Helen','Murph','Cindy','Diane','Annie','Fight Gone Bad','Karen','Max Pull-ups','Max HSPU','Max Double-unders']
   };
@@ -5389,7 +5557,7 @@ ${days}
     });
     if (error){ alert('Could not save PR: ' + error.message); btn.disabled=false; btn.textContent='Save'; return; }
     btn.textContent = 'Saved ✓'; setTimeout(()=>{ btn.disabled=false; btn.textContent='Save'; }, 1000);
-    renderPrs();
+    renderPrs(); loadAllTimePrs();
   }
   function onPrAdd(e){
     const cat = e.target.dataset.cat;
