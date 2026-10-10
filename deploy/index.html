@@ -605,6 +605,8 @@
   .prc-hist{margin-top:16px}
   .prc-hist table{width:100%;border-collapse:collapse;font-size:13px}
   .prc-hist td,.prc-hist th{padding:7px 8px;border-bottom:1px solid var(--line);text-align:left}
+  .rm-table .btn{font-size:11px;padding:4px 10px}
+  .rm-auto{color:var(--muted);font-size:11px}
   .prc-hist th{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:1px}
   .pr-toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);background:var(--good);color:#0b1a12;font-weight:800;padding:12px 20px;border-radius:999px;box-shadow:0 10px 30px rgba(0,0,0,.35);opacity:0;pointer-events:none;transition:all .3s;z-index:90;font-family:'Space Grotesk'}
   .pr-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -5383,18 +5385,28 @@ ${days}
     const out = {};
     (data||[]).forEach(r => {
       if (r.value == null) return;
-      const o = out[r.name] ??= { name:r.name, category:r.category, unit:r.unit, history:[] };
+      const o = out[r.name] ??= { name:r.name, category:r.category, unit:r.unit, history:[], rm:{} };
+      const rmN = repMaxOf(r);
+      if (rmN > 1){   // 3RM / 5RM rows are kept separately from the 1RM
+        const cur = o.rm[rmN];
+        if (!cur || +r.value >= +cur.value) o.rm[rmN] = { value:+r.value, recorded_at:r.recorded_at };
+        return;
+      }
       o.history.push(r);
       // all-time = best ever logged (not just most recent)
       if (o.value == null || +r.value >= +o.value){ o.value = +r.value; o.recorded_at = r.recorded_at; o.unit = r.unit; o.notes = r.notes; }
     });
+    Object.values(out).forEach(o => { if (o.value != null) o.rm[1] = { value:o.value, recorded_at:o.recorded_at }; });
+    // a lift that only has 3RM/5RM rows shouldn't appear as a 1RM card
+    Object.keys(out).forEach(k => { if (out[k].value == null) { out[k].rmOnly = true; } });
     ALLTIME_PRS = out;
     renderAllTimePrs();
   }
+  function repMaxOf(r){ const m = /^rm:(\d+)/.exec(String(r?.notes||'')); return m ? +m[1] : 1; }
   const PR_ORDER = ['Snatch','Clean & Jerk','Clean','Jerk','Power Clean & Jerk','Hang Power Clean','Power Clean','Power Snatch','Push Press','Back Squat','Front Squat','Overhead Squat','Deadlift','Bench Press'];
   function renderAllTimePrs(){
     const wrap = document.getElementById('allTimePrSection'); if (!wrap) return;
-    const items = Object.values(ALLTIME_PRS).sort((a,b) => {
+    const items = Object.values(ALLTIME_PRS).filter(p => !p.rmOnly).sort((a,b) => {
       const ia = PR_ORDER.indexOf(a.name), ib = PR_ORDER.indexOf(b.name);
       return (ia<0?99:ia) - (ib<0?99:ib) || a.name.localeCompare(b.name);
     });
@@ -5447,9 +5459,16 @@ ${days}
     if (bRes.error || tRes.error){ body.innerHTML = `<div class="search-empty">Could not load history.</div>`; return; }
     const res = Object.fromEntries((tRes.data||[]).map(r => [r.block_id, r.results || []]));
     const perDate = {};
+    const autoRm = {};
     (bRes.data||[]).forEach(b => {
       if (prLiftForBlock(b) !== name) return;
+      const repsM = /\b\d+\s*[x×]\s*(\d+)\b/i.exec(b.name||'');
+      const reps = repsM ? +repsM[1] : null;
       (res[b.id]||[]).forEach(r => {
+        if (reps && !isFailedResult(r)){
+          const n0 = parseFloat(resultText(r));
+          if ([1,3,5].includes(reps) && n0 > 0 && (!autoRm[reps] || n0 > autoRm[reps].value)) autoRm[reps] = { value:n0, recorded_at:b.date };
+        }
         if (isFailedResult(r)) return;
         const n = parseFloat(resultText(r)); if (!(n > 0)) return;
         if (!/kg|^\s*\d/.test(String(r))) return;
@@ -5468,10 +5487,27 @@ ${days}
       </div>
       ${pts.length ? `<div class="prc-chart"><canvas id="prChartCanvas"></canvas></div>`
                    : `<div class="pr-empty">No logged ${esc(name)} sessions yet. Log a weight with ✓ on a ${esc(name)} block and it'll appear here.</div>`}
-      ${(p.history||[]).length ? `<div class="prc-hist"><h4 style="margin:0 0 6px">PR history</h4><table><tr><th>Date</th><th>Weight</th><th>Source</th></tr>
-        ${p.history.slice().reverse().map(h => `<tr><td>${h.recorded_at ? esc(fmtDateShort(h.recorded_at)) : '—'}</td><td><b>${esc(fmtNum(h.value))}</b> ${esc(h.unit||'kg')}</td><td>${/auto/i.test(h.notes||'') ? 'Workout' : 'Entered'}</td></tr>`).join('')}
-      </table></div>` : ''}
+      <div class="prc-hist"><h4 style="margin:0 0 6px">Rep maxes</h4>
+        <table class="rm-table"><tr><th>Reps</th><th>Heaviest</th><th>Date</th><th></th></tr>
+        ${[1,3,5].map(n => { const r = (p.rm||{})[n] || autoRm[n]; const auto = !(p.rm||{})[n] && autoRm[n];
+          return `<tr data-rm="${n}"><td><b>${n}RM</b></td>
+            <td>${r ? `<b>${esc(fmtNum(r.value))}</b> kg${auto ? ' <span class="rm-auto" title="From your logged workouts">· logged</span>' : ''}` : '<span style="color:var(--muted)">—</span>'}</td>
+            <td>${r && r.recorded_at ? esc(fmtDateShort(r.recorded_at)) : ''}</td>
+            <td style="text-align:right"><button class="btn rm-edit" type="button" data-rm="${n}">${(p.rm||{})[n] ? 'Edit' : 'Add'}</button></td></tr>`; }).join('')}
+        </table>
+        <p class="muted-note" style="margin-top:8px;font-size:12px">"logged" = detected automatically from a workout block with that rep count (e.g. "5x5", "4x3"). Tap Add to set your own.</p>
+      </div>
     </div>`;
+    body.querySelectorAll('.rm-edit').forEach(btn => btn.addEventListener('click', async () => {
+      const n = +btn.dataset.rm; const cur = (p.rm||{})[n];
+      const v = prompt(`${name} — heaviest ${n}RM (kg):`, cur ? cur.value : '');
+      if (v == null) return; const val = parseFloat(v); if (!(val > 0)) return;
+      const category = PR_DEFS.powerlifting.includes(name) ? 'powerlifting' : 'weightlifting';
+      const row = { user_id: activeUserId(), category, name, value: val, unit:'kg', recorded_at: todayKey(), notes: n === 1 ? 'entered (1RM)' : `rm:${n}` };
+      const { error } = await sb.from('crossfit_prs').insert(row);
+      if (error){ alert('Could not save: ' + error.message); return; }
+      await loadAllTimePrs(); openPrChart(name);
+    }));
     if (!pts.length) return;
     await window._lazyLib.chart();
     const c = chartColors();
@@ -5508,10 +5544,11 @@ ${days}
   async function renderPrs(){
     const box = document.getElementById('prsContainer');
     box.innerHTML = `<div class="search-empty">Loading…</div>`;
-    const { data, error } = await sb.from('crossfit_prs').select('*').eq('user_id', activeUserId())
+    let { data, error } = await sb.from('crossfit_prs').select('*').eq('user_id', activeUserId())
       .order('recorded_at', { ascending:false, nullsFirst:false }).order('created_at', { ascending:false });
     if (error){ box.innerHTML = `<div class="search-empty">Could not load PRs: ${esc(error.message)}</div>`; return; }
     const latest = {}; const counts = {};
+    data = (data||[]).filter(r => repMaxOf(r) === 1);
     (data||[]).forEach(r => {
       const k = r.category + '|' + r.name;
       if (!latest[k]) latest[k] = r;
