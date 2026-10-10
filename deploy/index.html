@@ -5467,7 +5467,8 @@ ${days}
       (res[b.id]||[]).forEach(r => {
         if (reps && !isFailedResult(r)){
           const n0 = parseFloat(resultText(r));
-          if ([1,2,3,5].includes(reps) && n0 > 0 && (!autoRm[reps] || n0 > autoRm[reps].value)) autoRm[reps] = { value:n0, recorded_at:b.date };
+          // a heavier set with MORE reps also counts (4 @122.5 ⇒ 3RM ≥ 122.5)
+          if (n0 > 0) [1,2,3,5].forEach(k => { if ((k === 1 ? reps === 1 : reps >= k) && (!autoRm[k] || n0 > autoRm[k].value)) autoRm[k] = { value:n0, recorded_at:b.date }; });
         }
         if (isFailedResult(r)) return;
         const n = parseFloat(resultText(r)); if (!(n > 0)) return;
