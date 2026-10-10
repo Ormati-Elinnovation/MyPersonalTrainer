@@ -5236,7 +5236,9 @@ ${days}
       }
       weekStart = startOfWeek(selectedKey);
       finishedDates = fin;
-      renderCalendar(); renderDayDetail(); buildCharts(); updateArchiveBadge(); renderProgramsList();
+      renderCalendar(); renderDayDetail(); updateArchiveBadge(); renderProgramsList();
+      loadAllTimePrs();
+      if (document.getElementById('weightsChart')) buildCharts().catch(()=>{});
       renderTraineeBanner();
       setHeaderGreeting();
       if (!programs.length){ renderGetStarted(self); }
