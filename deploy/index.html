@@ -4119,6 +4119,8 @@ ${days}
   function injectTracker(block, key, b){
     let scoreType = inferScoreType(b);   // explicit, or auto-detected from the workout
     if (isAmrapBlock(b)) scoreType = 'rounds';
+    const gymDef = !isAmrapBlock(b) ? gymPrForBlock(b) : null;
+    if (gymDef) scoreType = 'gym';
     // Metcon / AMRAP scored in reps → log rounds + reps separately (no mental maths)
     if (scoreType === 'reps' && (/metcon|conditioning/i.test(b?.cat || '') || /\bamrap\b|\bemom\b|as many rounds|\bcindy\b/i.test((b?.name||'') + ' ' + (b?.body||'')))) scoreType = 'rounds';
     const state = tkData[key] = Object.assign({ done:false, notes:'', results:[], sauna:false, ice:false }, tkData[key] || {});
@@ -4132,6 +4134,10 @@ ${days}
           <input class="tk-rp" type="number" min="0" step="1" inputmode="numeric" placeholder="Reps" />
           <button type="submit" aria-label="Add">+</button>
         </form>`;
+    } else if (scoreType === 'gym'){
+      // per-set reps or seconds, prefilled from the title ("6×3" → 3, "4×40 sec" → 40)
+      const gm = /\b\d+\s*[x×]\s*(\d+)\b/.exec(String(b?.name||''));
+      addHtml = `<form class="tk-add tk-gym"><input class="tk-w" type="number" min="0" step="1" inputmode="numeric" placeholder="${gymDef.lbl}" value="${gm ? gm[1] : ''}" /><span class="tk-x" style="min-width:34px">${gymDef.lbl}</span><button type="submit" class="tk-ok" data-mark="ok" aria-label="Done" title="Done">✓</button></form>`;
     } else if (scoreType === 'reps'){
       addHtml = `<form class="tk-add"><input type="number" step="1" inputmode="numeric" placeholder="Reps / rounds" /><button type="submit" aria-label="Add">+</button></form>`;
     } else if (scoreType === 'time'){
@@ -4223,10 +4229,10 @@ ${days}
         setTimeout(() => { updateDayProgress(); renderCalendar(); renderHeroStats(); }, 0);
       }
       saveTrackerForBlock(key, state); renderList();
-      if (b) maybeAutoPr(b, v);
+      if (b) { if (scoreType === 'gym') maybeGymPr(b, v); else maybeAutoPr(b, v); }
       // First result on an unlabeled block → persist the inferred type so leaderboards can rank it.
       if (b && !b.score_type && scoreType){
-        b.score_type = scoreType === 'rounds' ? 'reps' : scoreType; b.score_dir = scoreType === 'time' ? 'low' : 'high';
+        b.score_type = (scoreType === 'rounds' || scoreType === 'gym') ? 'reps' : scoreType; b.score_dir = scoreType === 'time' ? 'low' : 'high';
         sb.from('blocks').update({ score_type: b.score_type, score_dir: b.score_dir }).eq('id', key).then(()=>{});
       }
     }
@@ -4264,7 +4270,10 @@ ${days}
           const rpEl = form.querySelector('.tk-reps'); const rp = parseInt(rpEl?.value, 10) || 1;   // empty field / no reps in title → 1
           v = `${n} kg${rp > 0 ? ` × ${rp}` : ''} ${mark === 'fail' ? MARK_FAIL : MARK_OK}`; }
         else if (scoreType === 'reps'){ const n = parseInt(v,10); if (isNaN(n)) return; v = `${n} reps`; }
-        addResult(v); input.value = '';
+        else if (scoreType === 'gym'){ const n = parseFloat(v); if (!(n >= 0)) return; v = `${n} ${gymDef.lbl}`; }
+        addResult(v);
+        if (scoreType === 'gym') return;   // keep the planned number for the next set
+        input.value = '';
         const rpEl = form.querySelector('.tk-reps'); if (rpEl) rpEl.value = defaultRepsFor(b) || 1;
         prefillNext();
       });
@@ -5399,6 +5408,102 @@ ${days}
   }
 
   /* ====================== ALL-TIME PRs (home + chart + auto-update) ====================== */
+  /* ---- Gymnastics PRs (stored in crossfit_prs as category 'benchmark', notes start with 'gym') ---- */
+  // Only clearly measurable skills: max reps (strict, no band) or max hold seconds. No false-grip / transition / drills.
+  const GYM_PR_DEFS = [
+    { name:'Max Strict Pull-Ups',        unit:'reps', lbl:'reps',  rx:/^(?:max\s+)?strict pull-?ups?\b/i },
+    { name:'Max Strict Ring Pull-Ups',   unit:'reps', lbl:'reps',  rx:/^(?:max\s+)?strict (?:false grip )?ring pull-?ups?\b/i },
+    { name:'Max Chest-to-Bar Pull-Ups',  unit:'reps', lbl:'reps',  rx:/^(?:max\s+)?(?:strict\s+)?chest-to-bar(?: pull-?ups?)?\b/i },
+    { name:'Max Kipping Pull-Ups',       unit:'reps', lbl:'reps',  rx:/^(?:max\s+)?kipping pull-?ups?\b/i },
+    { name:'Max Strict Ring Dips',       unit:'reps', lbl:'reps',  rx:/^(?:max\s+)?strict ring dips?\b/i },
+    { name:'Max Strict Toes-to-Bar',     unit:'reps', lbl:'reps',  rx:/^(?:max\s+)?strict toes-to-bar\b/i },
+    { name:'Bar Muscle-Ups',             unit:'reps', lbl:'reps',  rx:/^(?:max\s+)?bar muscle-?ups?\b(?!.*jumping)/i },
+    { name:'Strict Ring Muscle-Ups',     unit:'reps', lbl:'reps',  rx:/^(?:max\s+)?strict ring muscle-?ups?\b(?!\s*negative)/i },
+    { name:'Max Ring Support Hold',      unit:'sec',  lbl:'sec',   rx:/^(?:max\s+)?ring support hold\b(?!.*rto)/i },
+    { name:'Max RTO Support Hold',       unit:'sec',  lbl:'sec',   rx:/^(?:max\s+)?ring support.*\brto\b|^(?:max\s+)?rto support/i },
+    { name:'Max Chest-to-Wall Handstand',unit:'sec',  lbl:'sec',   rx:/^(?:max\s+)?chest-to-wall handstand\b/i },
+    { name:'Max Freestanding Handstand', unit:'sec',  lbl:'sec',   rx:/^(?:max\s+|best\s+)?freestanding (?:handstand|hold|kick-up)/i },
+    { name:'Max Handstand Walk',         unit:'reps', lbl:'steps', rx:/^(?:max\s+)?handstand walk\b(?!\s*drills)/i },
+    { name:'Max Tuck L-Sit',             unit:'sec',  lbl:'sec',   rx:/^(?:max\s+)?tuck l-sit\b/i }
+  ];
+  const GYM_NAMES = new Set(GYM_PR_DEFS.map(d => d.name));
+  const isGymRow = r => r && r.category === 'benchmark' && (GYM_NAMES.has(r.name) || /^gym\b/i.test(r.notes || ''));
+  // block → gymnastics PR def. Banded / assisted / jumping / negatives / drills never count.
+  function gymPrForBlock(b){
+    let n = String((b && b.name) || '').replace(/^\s*\[[^\]]*\]\s*/, '').replace(/^test\s*[—–-]\s*/i, '').trim();
+    if (/\b(band(ed)?|assisted|jumping|negative|drills?|scap(ular)?|weighted|kip swing|transition|false grip (hang|top))\b/i.test(n)) return null;
+    return GYM_PR_DEFS.find(d => d.rx.test(n)) || null;
+  }
+  let GYM_PRS = {};   // name -> { value, recorded_at, history:[rows] }
+  async function loadGymPrs(uid){
+    const { data, error } = await sb.from('crossfit_prs').select('*').eq('user_id', uid).eq('category', 'benchmark')
+      .order('recorded_at', { ascending:true, nullsFirst:true }).order('created_at', { ascending:true });
+    if (error){ console.warn('gym PR load', error); return; }
+    const out = {};
+    (data||[]).filter(isGymRow).forEach(r => {
+      if (r.value == null) return;
+      const o = out[r.name] ??= { name:r.name, history:[] };
+      o.history.push(r);
+      if (o.value == null || +r.value >= +o.value){ o.value = +r.value; o.recorded_at = r.recorded_at; o.notes = r.notes; }
+    });
+    GYM_PRS = out;
+  }
+  async function maybeGymPr(b, v){
+    const def = gymPrForBlock(b); if (!def) return;
+    if (resultMark(v) === 'fail') return;
+    const val = parseFloat(resultText(v)); if (!(val > 0)) return;
+    const cur = GYM_PRS[def.name];
+    if (cur && cur.value != null && val <= +cur.value) return;
+    const { error } = await sb.from('crossfit_prs').insert({ user_id: activeUserId(), category:'benchmark', name:def.name, value:val, unit:def.unit,
+      recorded_at: b.date || selectedKey || todayKey(), notes:'gym · auto: from workout' });
+    if (error){ console.warn('gym PR', error); return; }
+    showPrToast(`🎉 New PR — ${def.name} ${fmtNum(val)} ${def.lbl}${cur && cur.value != null ? ` (was ${fmtNum(cur.value)})` : ''}`);
+    loadAllTimePrs();
+  }
+  async function openGymPrChart(name){
+    const def = GYM_PR_DEFS.find(d => d.name === name) || { name, unit:'reps', lbl:'reps' };
+    const el = document.getElementById('prChartDash');
+    document.getElementById('prChartTitle').textContent = name;
+    el.classList.add('open'); el.setAttribute('aria-hidden','false');
+    const body = document.getElementById('prChartBody');
+    const p = GYM_PRS[name] || { history:[] };
+    const hist = (p.history || []).slice();
+    // chart = best-so-far per date
+    const perDate = {}; hist.forEach(r => { const d = r.recorded_at || ''; if (d && (!perDate[d] || +r.value > perDate[d])) perDate[d] = +r.value; });
+    const pts = Object.entries(perDate).sort((a,b) => a[0] < b[0] ? -1 : 1);
+    const first = pts.length ? pts[0][1] : null;
+    body.innerHTML = `<div class="prc-wrap">
+      <div class="prc-stats">
+        <div class="stat good"><div class="k">Best</div><div class="v">${p.value!=null ? fmtNum(p.value) : '—'}<small>${esc(def.lbl)}</small></div></div>
+        <div class="stat"><div class="k">First logged</div><div class="v">${first!=null ? fmtNum(first) : '—'}<small>${esc(def.lbl)}</small></div></div>
+        <div class="stat"><div class="k">Progress</div><div class="v">${first!=null && p.value!=null ? '+' + fmtNum(p.value - first) : '—'}<small>${esc(def.lbl)}</small></div></div>
+      </div>
+      ${pts.length > 1 ? `<div class="prc-chart"><canvas id="prChartCanvas"></canvas></div>` : ''}
+      <div class="prc-hist"><h4 style="margin:0 0 6px">History</h4>
+        <table class="rm-table"><tr><th>Date</th><th>${esc(def.lbl)}</th><th>Note</th></tr>
+        ${hist.slice().reverse().map(r => `<tr><td>${r.recorded_at ? esc(fmtDateShort(r.recorded_at)) : ''}</td><td><b>${esc(fmtNum(r.value))}</b></td><td style="color:var(--muted);font-size:12px">${esc(String(r.notes||'').replace(/^gym\s*·?\s*/i,''))}</td></tr>`).join('') || `<tr><td colspan="3" style="color:var(--muted)">Nothing yet</td></tr>`}
+        </table>
+        <div style="margin-top:10px;text-align:right"><button class="btn" type="button" id="gymPrAdd">Add result</button></div>
+        <p class="muted-note" style="margin-top:8px;font-size:12px">Strict, no band. Updates automatically when a logged set beats it.</p>
+      </div>
+    </div>`;
+    document.getElementById('gymPrAdd').addEventListener('click', async () => {
+      const v = prompt(`${name} — ${def.lbl}:`, ''); if (v == null) return; const val = parseFloat(v); if (!(val > 0)) return;
+      const { error } = await sb.from('crossfit_prs').insert({ user_id: activeUserId(), category:'benchmark', name, value:val, unit:def.unit, recorded_at: todayKey(), notes:'gym · entered' });
+      if (error){ alert('Could not save: ' + error.message); return; }
+      await loadAllTimePrs(); openGymPrChart(name);
+    });
+    if (pts.length < 2) return;
+    await window._lazyLib.chart();
+    const c = chartColors();
+    if (prChart) prChart.destroy();
+    prChart = new Chart(document.getElementById('prChartCanvas').getContext('2d'), {
+      type:'line', data:{ labels: pts.map(([d]) => fmtDateShort(d)), datasets:[{ label: name, data: pts.map(([,v]) => v), borderColor:'#6fa8e0', backgroundColor:'rgba(111,168,224,.18)', fill:true, tension:.3, pointRadius:4 }] },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false },
+          tooltip:{ backgroundColor:c.tooltipBg, titleColor:c.ink, bodyColor:c.ink, callbacks:{ label: ctx => `${ctx.parsed.y} ${def.lbl}` } } },
+        scales:{ y:{ beginAtZero:true, grid:{color:c.grid}, ticks:{ color:c.tick, callback:v => v + ' ' + def.lbl } }, x:{ grid:{display:false}, ticks:{ color:c.tick, maxRotation:0, autoSkip:true } } } }
+    });
+  }
   let ALLTIME_PRS = {};   // name -> { value, unit, recorded_at, category, history:[...] }
   const PR_ALIASES = {
     'squat clean':'Clean', 'squat clean & jerk':'Clean & Jerk', 'squat clean and jerk':'Clean & Jerk', 'clean and jerk':'Clean & Jerk',
@@ -5438,6 +5543,7 @@ ${days}
     // a lift that only has 3RM/5RM rows shouldn't appear as a 1RM card
     Object.keys(out).forEach(k => { if (out[k].value == null) { out[k].rmOnly = true; } });
     ALLTIME_PRS = out;
+    await loadGymPrs(uid);
     renderAllTimePrs();
   }
   function repMaxOf(r){ const m = /^rm:(\d+)/.exec(String(r?.notes||'')); return m ? +m[1] : 1; }
@@ -5448,7 +5554,8 @@ ${days}
       const ia = PR_ORDER.indexOf(a.name), ib = PR_ORDER.indexOf(b.name);
       return (ia<0?99:ia) - (ib<0?99:ib) || a.name.localeCompare(b.name);
     });
-    if (!items.length){
+    const gymItems = GYM_PR_DEFS.map(d => GYM_PRS[d.name] && GYM_PRS[d.name].value != null ? Object.assign({ def:d }, GYM_PRS[d.name]) : null).filter(Boolean);
+    if (!items.length && !gymItems.length){
       wrap.innerHTML = `<div class="pr-empty">No all-time PRs yet. Tap <b>Edit PRs</b> to add your best lifts — they'll update automatically when you beat them in a workout.</div>`;
       return;
     }
@@ -5461,7 +5568,15 @@ ${days}
         <div class="pr-date">${p.recorded_at ? esc(fmtDateShort(p.recorded_at)) : '&nbsp;'}</div>
       </div>`;
     }).join('');
-    wrap.querySelectorAll('.atpr').forEach(c => c.addEventListener('click', () => openPrChart(c.dataset.pr)));
+    wrap.innerHTML += gymItems.map(p => {
+      const isNew = p.recorded_at && /auto/i.test(p.notes||'') && parseKey(p.recorded_at).getTime() >= recent;
+      return `<div class="pr-card atpr gympr" data-gym="${esc(p.name)}" title="Tap for progress">
+        <div class="pr-name">${esc(p.name.replace(/^Max\s+/,''))}${isNew ? '<span class="pr-new">🎉 New</span>' : ''}</div>
+        <div class="pr-val">${esc(fmtNum(p.value))} <small style="font-size:12px;color:var(--muted)">${esc(p.def.lbl)}</small></div>
+        <div class="pr-date">${p.recorded_at ? esc(fmtDateShort(p.recorded_at)) : '&nbsp;'}</div>
+      </div>`;
+    }).join('');
+    wrap.querySelectorAll('.atpr').forEach(c => c.addEventListener('click', () => c.dataset.gym ? openGymPrChart(c.dataset.gym) : openPrChart(c.dataset.pr)));
   }
   function fmtNum(v){ const n = +v; return Number.isInteger(n) ? String(n) : String(+n.toFixed(2)); }
   function showPrToast(msg){
@@ -5608,10 +5723,23 @@ ${days}
     });
     const who = viewingTrainee ? `${esc(viewingTrainee.display_name||'trainee')}'s ` : '';
     let html = `<p class="muted-note">${who}personal records. Saving keeps a history; the most recent value is shown.</p>`;
+    {
+      html += `<div class="group"><h4>Gymnastics</h4><div class="pr-list">`;
+      GYM_PR_DEFS.forEach(d => {
+        const cur = latest['benchmark|' + d.name]; const n = counts['benchmark|' + d.name];
+        html += `<div class="pr-row" data-cat="benchmark" data-gym="1" data-name="${esc(d.name)}">
+          <span class="pr-name">${esc(d.name)} ${n ? `<span class="pr-hist">${n}×</span>` : ''}</span>
+          <input class="pr-val" type="number" step="1" value="${cur?.value ?? ''}">
+          <select class="pr-unit"><option value="${d.unit}" selected>${esc(d.lbl)}</option></select>
+          <button class="btn pr-save">Save</button>
+        </div>`;
+      });
+      html += `</div></div>`;
+    }
     for (const cat of ['weightlifting','powerlifting','benchmark']){
       const names = [...PR_DEFS[cat]];
       // include any custom names already saved for this category
-      (data||[]).filter(r => r.category===cat && !names.includes(r.name)).forEach(r => { if (!names.includes(r.name)) names.push(r.name); });
+      (data||[]).filter(r => r.category===cat && !names.includes(r.name) && !isGymRow(r)).forEach(r => { if (!names.includes(r.name)) names.push(r.name); });
       html += `<div class="group"><h4>${PR_CAT_LABEL[cat]}</h4><div class="pr-list">`;
       names.forEach(name => {
         const k = cat + '|' + name;
@@ -5644,7 +5772,8 @@ ${days}
     if (value === '' ) { return; }
     const btn = e.target; btn.disabled = true; btn.textContent = '…';
     const { error } = await sb.from('crossfit_prs').insert({
-      user_id: activeUserId(), category: cat, name, value: parseFloat(value), unit, recorded_at: todayKey()
+      user_id: activeUserId(), category: cat, name, value: parseFloat(value), unit, recorded_at: todayKey(),
+      ...(row.dataset.gym ? { notes:'gym · entered' } : {})
     });
     if (error){ alert('Could not save PR: ' + error.message); btn.disabled=false; btn.textContent='Save'; return; }
     btn.textContent = 'Saved ✓'; setTimeout(()=>{ btn.disabled=false; btn.textContent='Save'; }, 1000);
