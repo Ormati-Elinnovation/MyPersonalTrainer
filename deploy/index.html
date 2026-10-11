@@ -4183,6 +4183,7 @@ ${days}
       clearTimeout(notesTimer);
       notesTimer = setTimeout(() => saveTrackerForBlock(key, state), 500);
     });
+    let prefillNext = () => {};
     function renderList(){
       list.innerHTML = state.results.map((r, i) => {
         const m = resultMark(r);
@@ -4192,7 +4193,7 @@ ${days}
         return `<div class="tk-item ${m || ''}"><span class="num">#${i+1}</span>${mark}<span class="txt">${esc(txt)}</span><button class="rm" data-i="${i}" aria-label="Remove">×</button></div>`;
       }).join('');
       list.querySelectorAll('.rm').forEach(btn => {
-        btn.addEventListener('click', () => { state.results.splice(+btn.dataset.i, 1); saveTrackerForBlock(key, state); renderList(); });
+        btn.addEventListener('click', () => { state.results.splice(+btn.dataset.i, 1); saveTrackerForBlock(key, state); renderList(); prefillNext(); });
       });
     }
     renderList();
@@ -4249,7 +4250,18 @@ ${days}
         else if (scoreType === 'reps'){ const n = parseInt(v,10); if (isNaN(n)) return; v = `${n} reps`; }
         addResult(v); input.value = '';
         const rpEl = form.querySelector('.tk-reps'); if (rpEl) rpEl.value = defaultRepsFor(b) || 1;
+        prefillNext();
       });
+      // prefill next set from the plan (title/body): weight + reps — just tap ✓ or edit
+      const plan = scoreType === 'weight' ? plannedSets(b) : [];
+      prefillNext = () => {
+        if (scoreType !== 'weight') return;
+        const rpEl = form.querySelector('.tk-reps');
+        const p = plan.length ? plan[Math.min(state.results.length, plan.length - 1)] : null;
+        input.value = p && p.w > 0 ? String(p.w) : '';
+        if (rpEl) rpEl.value = (p && p.r) || defaultRepsFor(b) || 1;
+      };
+      prefillNext();
       const repeatBtn = form.querySelector('.tk-repeat-last');
       if (repeatBtn){
         repeatBtn.addEventListener('click', () => {
@@ -4257,6 +4269,7 @@ ${days}
           if (!last) return;
           // Repeat the same weight as a MADE lift (strip a previous ✗ so a miss isn't copied forward)
           addResult(scoreType === 'weight' ? `${resultText(last)} ${MARK_OK}` : last);
+          prefillNext();
         });
       }
     }
@@ -6190,6 +6203,36 @@ ${days}
   function isFailedResult(r){ return resultMark(r) === 'fail'; }
   // reps logged with a weight result: "100 kg × 5 ✓" → 5 (null if not logged)
   function resultReps(r){ const m = /[×x]\s*(\d+)\s*(?:[✓✗])?\s*$/i.exec(String(r ?? '')); return m ? +m[1] : null; }
+  // planned sets from title/body → [{w, r}] (w = kg, lower end of a range; r = reps or null)
+  //   "Set 1: 85-90 kg x5" lines · "130kg x4 / 135kg x4" · "70 / 75 / 80 kg" · "4x5 @ 50 kg" / "@85-95kg" · a lone "20-30 kg" line
+  function plannedSets(b){
+    const name = String(b?.name || ''), body = String(b?.body || '');
+    const lines = body.split(/\n/), out = [];
+    const num = x => x == null ? null : parseFloat(String(x).replace(',', '.'));
+    lines.forEach(l => {
+      const m = /^\s*set\s*(\d+)\s*[:\-–]\s*([\d.,]+)(?:\s*[-–]\s*[\d.,]+)?\s*kg(?:\s*[x×]\s*(\d+))?/i.exec(l);
+      if (m) out[+m[1] - 1] = { w: num(m[2]), r: m[3] ? +m[3] : null };
+    });
+    if (out.filter(Boolean).length) return out.filter(Boolean);
+    const tok = '[\\d.,]+\\s*(?:kg)?(?:\\s*[x×]\\s*\\d+)?';
+    const listRe = new RegExp(`^\\s*${tok}(?:\\s*\\/\\s*${tok})+\\s*$`, 'i');
+    for (const l of lines){
+      if (!/kg/i.test(l) || !listRe.test(l)) continue;
+      return l.split('/').map(t => { const m = /([\d.,]+)\s*(?:kg)?(?:\s*[x×]\s*(\d+))?/i.exec(t); return { w: num(m[1]), r: m[2] ? +m[2] : null }; });
+    }
+    const at = /@\s*([\d.,]+)(?:\s*[-–]\s*[\d.,]+)?\s*kg/i.exec(name) || /@\s*([\d.,]+)(?:\s*[-–]\s*[\d.,]+)?\s*kg/i.exec(body);
+    if (at) return [{ w: num(at[1]), r: null }];
+    // one set per line: "130kg x4" / "20-30 kg"
+    const per = lines.map(l => /^\s*([\d.,]+)(?:\s*[-–]\s*[\d.,]+)?\s*kg(?:\s*[x×]\s*(\d+))?\s*$/i.exec(l)).filter(Boolean);
+    if (per.length) return per.map(m => ({ w: num(m[1]), r: m[2] ? +m[2] : null }));
+    // bare "80×5" / "80×5, 90×5" (no 'kg'): weight×reps, weight must look like a load (≥ 10)
+    for (const l of lines){
+      const parts = l.split(/\s*[\/,]\s*/).filter(Boolean);
+      const ms = parts.map(t => /^\s*([\d.]+)\s*[x×]\s*(\d+)\s*$/i.exec(t));
+      if (parts.length && ms.every(Boolean) && ms.every(m => +m[1] >= 10)) return ms.map(m => ({ w: +m[1], r: +m[2] }));
+    }
+    return [];
+  }
   // default reps from the block title: "Front Squat · 4×5" → 5. Complexes "4×(2+1)" / ranges → none.
   function defaultRepsFor(b){
     const t = String(b?.name || '');
