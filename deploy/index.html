@@ -344,8 +344,10 @@
   .tk-item.ok .mark{color:#1a7f37}
   .tk-item.fail .mark{color:#c62839}
   .tk-add .tk-repeat-last{width:auto;height:34px;padding:0 10px;border-radius:8px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink-soft);font-weight:600;font-size:12px;white-space:nowrap;gap:4px}
-  .tk-add.tk-wt .tk-w{flex:1.4}
-  .tk-add.tk-wt .tk-reps{flex:0 0 64px;text-align:center}
+  .tk-add.tk-wt{flex-wrap:nowrap}
+  .tk-add.tk-wt .tk-w{flex:1 1 auto;min-width:72px}
+  .tk-add.tk-wt .tk-reps{flex:0 0 48px;width:48px;text-align:center;padding:8px 4px}
+  .tk-add.tk-wt .tk-repeat-last{padding:0 8px}
   .tk-add .tk-x{align-self:center;color:var(--muted);font-weight:700}
   .tk-add .tk-repeat-last:hover{background:var(--panel);color:var(--ink);transform:none}
   .block.done{border-color:rgba(180,224,193,.45);background:linear-gradient(180deg,rgba(180,224,193,.06),var(--panel))}
@@ -4106,7 +4108,7 @@ ${days}
     const state = tkData[key] = Object.assign({ done:false, notes:'', results:[], sauna:false, ice:false }, tkData[key] || {});
     let addHtml;
     if (scoreType === 'weight'){
-      addHtml = `<form class="tk-add tk-wt"><input class="tk-w" type="number" step="0.5" inputmode="decimal" placeholder="Weight (kg)" /><span class="tk-x">×</span><input class="tk-reps" type="number" min="1" step="1" inputmode="numeric" placeholder="Reps" value="${defaultRepsFor(b) || ''}" title="Reps (defaults to the title)" /><button type="submit" class="tk-ok" data-mark="ok" aria-label="Made lift" title="Made it">✓</button><button type="submit" class="tk-fail" data-mark="fail" aria-label="Missed lift" title="Missed">✗</button><button type="button" class="tk-repeat-last" title="Repeat last weight">↺ Same</button></form>`;
+      addHtml = `<form class="tk-add tk-wt"><input class="tk-w" type="number" step="0.5" inputmode="decimal" placeholder="Weight (kg)" /><span class="tk-x">×</span><input class="tk-reps" type="number" min="1" step="1" inputmode="numeric" placeholder="Reps" value="${defaultRepsFor(b) || ''}" title="Reps (defaults to the title)" /><button type="submit" class="tk-ok" data-mark="ok" aria-label="Made lift" title="Made it">✓</button><button type="submit" class="tk-fail" data-mark="fail" aria-label="Missed lift" title="Missed">✗</button><button type="button" class="tk-repeat-last" title="Repeat last set">↺</button></form>`;
     } else if (scoreType === 'rounds'){
       addHtml = `<form class="tk-add tk-rounds">
           <input class="tk-rd" type="number" min="0" step="1" inputmode="numeric" placeholder="Rounds" />
