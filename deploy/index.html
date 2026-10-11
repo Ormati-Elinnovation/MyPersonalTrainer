@@ -344,6 +344,9 @@
   .tk-item.ok .mark{color:#1a7f37}
   .tk-item.fail .mark{color:#c62839}
   .tk-add .tk-repeat-last{width:auto;height:34px;padding:0 10px;border-radius:8px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink-soft);font-weight:600;font-size:12px;white-space:nowrap;gap:4px}
+  .tk-add.tk-wt .tk-w{flex:1.4}
+  .tk-add.tk-wt .tk-reps{flex:0 0 64px;text-align:center}
+  .tk-add .tk-x{align-self:center;color:var(--muted);font-weight:700}
   .tk-add .tk-repeat-last:hover{background:var(--panel);color:var(--ink);transform:none}
   .block.done{border-color:rgba(180,224,193,.45);background:linear-gradient(180deg,rgba(180,224,193,.06),var(--panel))}
   .block.done > .block-head > .icon{background:rgba(180,224,193,.2);color:var(--good)}
@@ -4103,7 +4106,7 @@ ${days}
     const state = tkData[key] = Object.assign({ done:false, notes:'', results:[], sauna:false, ice:false }, tkData[key] || {});
     let addHtml;
     if (scoreType === 'weight'){
-      addHtml = `<form class="tk-add"><input type="number" step="0.5" inputmode="decimal" placeholder="Weight (kg)" /><button type="submit" class="tk-ok" data-mark="ok" aria-label="Made lift" title="Made it">✓</button><button type="submit" class="tk-fail" data-mark="fail" aria-label="Missed lift" title="Missed">✗</button><button type="button" class="tk-repeat-last" title="Repeat last weight">↺ Same</button></form>`;
+      addHtml = `<form class="tk-add tk-wt"><input class="tk-w" type="number" step="0.5" inputmode="decimal" placeholder="Weight (kg)" /><span class="tk-x">×</span><input class="tk-reps" type="number" min="1" step="1" inputmode="numeric" placeholder="Reps" value="${defaultRepsFor(b) || ''}" title="Reps (defaults to the title)" /><button type="submit" class="tk-ok" data-mark="ok" aria-label="Made lift" title="Made it">✓</button><button type="submit" class="tk-fail" data-mark="fail" aria-label="Missed lift" title="Missed">✗</button><button type="button" class="tk-repeat-last" title="Repeat last weight">↺ Same</button></form>`;
     } else if (scoreType === 'rounds'){
       addHtml = `<form class="tk-add tk-rounds">
           <input class="tk-rd" type="number" min="0" step="1" inputmode="numeric" placeholder="Rounds" />
@@ -4237,9 +4240,12 @@ ${days}
         e.preventDefault();
         let v = input.value.trim(); if (!v) return;
         const mark = e.submitter?.dataset?.mark || 'ok';
-        if (scoreType === 'weight'){ const n = parseFloat(v); if (isNaN(n)) return; v = `${n} kg ${mark === 'fail' ? MARK_FAIL : MARK_OK}`; }
+        if (scoreType === 'weight'){ const n = parseFloat(v); if (isNaN(n)) return;
+          const rpEl = form.querySelector('.tk-reps'); const rp = parseInt(rpEl?.value, 10);
+          v = `${n} kg${rp > 0 ? ` × ${rp}` : ''} ${mark === 'fail' ? MARK_FAIL : MARK_OK}`; }
         else if (scoreType === 'reps'){ const n = parseInt(v,10); if (isNaN(n)) return; v = `${n} reps`; }
         addResult(v); input.value = '';
+        const rpEl = form.querySelector('.tk-reps'); if (rpEl && !rpEl.value) rpEl.value = defaultRepsFor(b) || '';
       });
       const repeatBtn = form.querySelector('.tk-repeat-last');
       if (repeatBtn){
@@ -5465,10 +5471,11 @@ ${days}
       const repsM = /\b\d+\s*[x×]\s*(\d+)\b/i.exec(b.name||'');
       const reps = repsM ? +repsM[1] : null;
       (res[b.id]||[]).forEach(r => {
-        if (reps && !isFailedResult(r)){
+        const rr = resultReps(r) || reps;   // reps typed with the set win over the title
+        if (rr && !isFailedResult(r)){
           const n0 = parseFloat(resultText(r));
           // a heavier set with MORE reps also counts (4 @122.5 ⇒ 3RM ≥ 122.5)
-          if (n0 > 0) [1,2,3,5].forEach(k => { if ((k === 1 ? reps === 1 : reps >= k) && (!autoRm[k] || n0 > autoRm[k].value)) autoRm[k] = { value:n0, recorded_at:b.date }; });
+          if (n0 > 0) [1,2,3,5].forEach(k => { if ((k === 1 ? rr === 1 : rr >= k) && (!autoRm[k] || n0 > autoRm[k].value)) autoRm[k] = { value:n0, recorded_at:b.date }; });
         }
         if (isFailedResult(r)) return;
         const n = parseFloat(resultText(r)); if (!(n > 0)) return;
@@ -6178,6 +6185,14 @@ ${days}
   function resultMark(r){ const s = String(r ?? '').trim(); return s.endsWith(MARK_FAIL) ? 'fail' : s.endsWith(MARK_OK) ? 'ok' : null; }
   function resultText(r){ return String(r ?? '').replace(new RegExp(`\\s*[${MARK_OK}${MARK_FAIL}]$`), ''); }
   function isFailedResult(r){ return resultMark(r) === 'fail'; }
+  // reps logged with a weight result: "100 kg × 5 ✓" → 5 (null if not logged)
+  function resultReps(r){ const m = /[×x]\s*(\d+)\s*(?:[✓✗])?\s*$/i.exec(String(r ?? '')); return m ? +m[1] : null; }
+  // default reps from the block title: "Front Squat · 4×5" → 5. Complexes "4×(2+1)" / ranges → none.
+  function defaultRepsFor(b){
+    const t = String(b?.name || '');
+    const m = /\b\d+\s*[x×]\s*(\d+)\b(?!\s*[+(.\d]|\s*(?:kg|lb|m\b|sec|s\b|cal|%))/i.exec(t);
+    return m ? +m[1] : null;
+  }
 
   // AMRAP result: "6 rounds + 10 reps" (rounds or reps may be 0/omitted)
   function formatRounds(R, P){
