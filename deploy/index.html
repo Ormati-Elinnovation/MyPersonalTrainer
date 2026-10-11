@@ -4108,7 +4108,7 @@ ${days}
     const state = tkData[key] = Object.assign({ done:false, notes:'', results:[], sauna:false, ice:false }, tkData[key] || {});
     let addHtml;
     if (scoreType === 'weight'){
-      addHtml = `<form class="tk-add tk-wt"><input class="tk-w" type="number" step="0.5" inputmode="decimal" placeholder="kg" /><span class="tk-x">×</span><input class="tk-reps" type="number" min="1" step="1" inputmode="numeric" placeholder="reps" value="${defaultRepsFor(b) || 1}" title="Reps (defaults to the title)" /><button type="submit" class="tk-ok" data-mark="ok" aria-label="Made lift" title="Made it">✓</button><button type="submit" class="tk-fail" data-mark="fail" aria-label="Missed lift" title="Missed">✗</button><button type="button" class="tk-repeat-last" title="Repeat last set">↺</button></form>`;
+      addHtml = `<form class="tk-add tk-wt"><input class="tk-reps" type="number" min="1" step="1" inputmode="numeric" placeholder="reps" value="${defaultRepsFor(b) || 1}" title="Reps (defaults to the title)" /><span class="tk-x">×</span><input class="tk-w" type="number" step="0.5" inputmode="decimal" placeholder="kg" /><button type="submit" class="tk-ok" data-mark="ok" aria-label="Made lift" title="Made it">✓</button><button type="submit" class="tk-fail" data-mark="fail" aria-label="Missed lift" title="Missed">✗</button><button type="button" class="tk-repeat-last" title="Repeat last set">↺</button></form>`;
     } else if (scoreType === 'rounds'){
       addHtml = `<form class="tk-add tk-rounds">
           <input class="tk-rd" type="number" min="0" step="1" inputmode="numeric" placeholder="Rounds" />
@@ -4237,7 +4237,7 @@ ${days}
       dnfForm.addEventListener('submit', (e) => { e.preventDefault(); const r = parseInt(dnfReps.value,10); if (!r) return; addResult(`${r} reps`); dnfReps.value=''; });
     } else {
       const form = tracker.querySelector('.tk-add');
-      const input = form.querySelector('input');
+      const input = form.querySelector('.tk-w') || form.querySelector('input');   // reps field sits left of weight
       form.addEventListener('submit', (e) => {
         e.preventDefault();
         let v = input.value.trim(); if (!v) return;
