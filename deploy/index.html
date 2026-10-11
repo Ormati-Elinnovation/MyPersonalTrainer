@@ -1619,6 +1619,12 @@
   let LANG = 'en';
   try { LANG = localStorage.getItem(LANG_KEY) === 'he' ? 'he' : 'en'; } catch {}
   function tName(b){ return (LANG === 'he' && b && b.name_he) ? b.name_he : (b && b.name) || ''; }
+  // display: weight×reps → reps × weight ("92.5×5" → "5 × 92.5", "130kg x4" → "4 × 130kg", "85-90 kg x5" → "5 × 85-90 kg").
+  // Only when it's clearly a load (has kg, or first number ≥ 20) so sets×reps like "5×5" / "2×22.5kg" stay as they are.
+  function repsLeft(t){
+    return String(t || '').replace(/(^|[^\d.,:])(\d+(?:[.,]\d+)?(?:\s*[-–]\s*\d+(?:[.,]\d+)?)?)(\s*kg)?\s*[x×]\s*(\d+)(?!\d|[.,:]\d|\s*kg|\s*[(+]|\s*(?:m|cal|sec|s|min)\b)/gi,
+      (m, pre, w, kg, r) => (kg || parseFloat(w) >= 20) ? `${pre}${r} × ${w}${kg ? ' ' + kg.trim() : ''}` : m);
+  }
   function tBody(b){ return (LANG === 'he' && b && b.body_he) ? b.body_he : (b && b.body) || ''; }
   function updateLangButton(){
     const btn = document.getElementById('langToggle');
@@ -3029,7 +3035,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
           blocksHtml += `<div class="wt-mini${extraCls}" data-block-id="${esc(b.id)}" data-from="${k}" data-cat="${esc((b.cat||'').toLowerCase())}">
             <div class="wt-cat">${esc(b.cat)}</div>
             <div class="wt-name" dir="auto">${esc(tName(b))}</div>
-            ${tBody(b) ? `<div class="wt-body" dir="auto">${esc(tBody(b))}</div>` : ''}
+            ${tBody(b) ? `<div class="wt-body" dir="auto">${esc(repsLeft(tBody(b)))}</div>` : ''}
             <div class="wt-actions">
               <button class="wt-action-btn dup" data-act="dup" title="Duplicate">⧉</button>
               <button class="wt-action-btn del" data-act="del" title="Delete">×</button>
@@ -3468,7 +3474,7 @@ ${days}
         </div>
       </div>
       <div class="name" dir="auto">${esc(tName(b))}</div>
-      <div class="body" dir="auto">${linkify(esc(tBody(b)))}</div>
+      <div class="body" dir="auto">${linkify(esc(repsLeft(tBody(b))))}</div>
       ${timerHTML(b.timer)}
     `;
     el.querySelector('.block-edit:not(.block-lb)').addEventListener('click', () => openModal(b.id));
