@@ -4186,7 +4186,8 @@ ${days}
     function renderList(){
       list.innerHTML = state.results.map((r, i) => {
         const m = resultMark(r);
-        const txt = resultText(r);
+        // show reps on the LEFT: stored "90 kg × 4" → displayed "4 × 90 kg" (storage unchanged)
+        const txt = resultText(r).replace(/^\s*([\d.]+)\s*kg\s*[×x]\s*(\d+)\s*$/i, '$2 × $1 kg');
         const mark = m === 'ok' ? '<span class="mark">✓</span>' : m === 'fail' ? '<span class="mark">✗</span>' : '';
         return `<div class="tk-item ${m || ''}"><span class="num">#${i+1}</span>${mark}<span class="txt">${esc(txt)}</span><button class="rm" data-i="${i}" aria-label="Remove">×</button></div>`;
       }).join('');
