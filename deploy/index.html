@@ -2883,8 +2883,8 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
         const results = state && Array.isArray(state.results) ? state.results : [];
         if (!results.length) return;
         const name = tName(b) || 'Workout';
-        const scoreType = b.score_type || inferScoreType(b);
-        const dir = b.score_dir || (scoreType === 'time' ? 'low' : 'high');
+        const scoreType = inferScoreType(b);
+        const dir = isAmrapBlock(b) ? 'high' : (b.score_dir || (scoreType === 'time' ? 'low' : 'high'));
         results.forEach(r => {
           const val = parseScore(r);
           if (val == null) return;
@@ -3432,7 +3432,10 @@ ${days}
     return !!programs.find(p => p.id === currentProgramId)?.is_generic;
   }
   // Auto-detect how a block's result should be measured (so leaderboards compare apples to apples).
+  // AMRAP is always scored rounds + reps — never time, whatever score_type says
+  function isAmrapBlock(b){ return /\bamrap\b|as many rounds/i.test(((b&&b.name)||'') + ' ' + ((b&&b.body)||'')) && !/\bfor time\b/i.test((b&&b.name)||''); }
   function inferScoreType(b){
+    if (isAmrapBlock(b)) return 'reps';
     if (b && b.score_type) return b.score_type;
     const t = (((b&&b.name)||'') + ' ' + ((b&&b.body)||'')).toLowerCase();
     const tm = b && b.timer && b.timer.m;
@@ -4103,6 +4106,7 @@ ${days}
 
   function injectTracker(block, key, b){
     let scoreType = inferScoreType(b);   // explicit, or auto-detected from the workout
+    if (isAmrapBlock(b)) scoreType = 'rounds';
     // Metcon / AMRAP scored in reps → log rounds + reps separately (no mental maths)
     if (scoreType === 'reps' && (/metcon|conditioning/i.test(b?.cat || '') || /\bamrap\b|\bemom\b|as many rounds|\bcindy\b/i.test((b?.name||'') + ' ' + (b?.body||'')))) scoreType = 'rounds';
     const state = tkData[key] = Object.assign({ done:false, notes:'', results:[], sauna:false, ice:false }, tkData[key] || {});
