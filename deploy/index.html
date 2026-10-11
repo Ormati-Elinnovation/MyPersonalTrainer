@@ -5469,11 +5469,23 @@ ${days}
     const val = parseFloat(resultText(v)); if (!(val > 0)) return;
     const cur = ALLTIME_PRS[lift];
     if (cur && (cur.unit||'kg') !== 'kg') return;
-    if (cur && val <= +cur.value) return;
-    const category = PR_DEFS.powerlifting.includes(lift) ? 'powerlifting' : 'weightlifting';
-    const { error } = await sb.from('crossfit_prs').insert({ user_id: activeUserId(), category, name: lift, value: val, unit:'kg', recorded_at: b.date || selectedKey || todayKey(), notes: 'auto: from workout' });
+    // reps of this set: typed with the set, else the title (NxM), else 1
+    const reps = resultReps(v) || defaultRepsFor(b) || 1;
+    const category = cur?.category || (PR_DEFS.powerlifting.includes(lift) ? 'powerlifting' : 'weightlifting');
+    const date = b.date || selectedKey || todayKey();
+    // a set of R reps sets a new kRM for every k ≤ R (5 × 100 ⇒ 5RM, 3RM, 2RM ≥ 100). 1RM only from a real single.
+    const beaten = [1,2,3,5].filter(k => (k === 1 ? reps === 1 : reps >= k)).filter(k => {
+      const prev = k === 1 ? (cur && cur.value != null ? +cur.value : null) : cur?.rm?.[k]?.value;
+      return prev == null || val > +prev;
+    });
+    if (!beaten.length) return;
+    const rows = beaten.map(k => ({ user_id: activeUserId(), category, name: lift, value: val, unit:'kg', recorded_at: date,
+      notes: k === 1 ? 'auto: from workout' : `rm:${k} · auto: from workout` }));
+    const { error } = await sb.from('crossfit_prs').insert(rows);
     if (error){ console.warn('auto PR', error); return; }
-    showPrToast(`🎉 New PR — ${lift} ${fmtNum(val)} kg${cur ? ` (was ${fmtNum(cur.value)})` : ''}`);
+    const top = Math.max(...beaten);
+    const prevTop = top === 1 ? cur?.value : cur?.rm?.[top]?.value;
+    showPrToast(`🎉 New PR — ${lift} ${beaten.slice().sort((a,b)=>b-a).map(k => k + 'RM').join(' / ')} ${fmtNum(val)} kg${prevTop != null ? ` (was ${fmtNum(prevTop)})` : ''}`);
     loadAllTimePrs();
   }
   let prChart;
