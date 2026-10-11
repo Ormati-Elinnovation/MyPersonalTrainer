@@ -2846,6 +2846,16 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       else if (k < today) weekRest++;
     });
     const restCls = (weekRest >= 1 && weekRest <= 2) ? 'good' : '';
+    // Workouts this calendar month (resets on the 1st) — same rule as weekly Workouts: non-rest day finished or with a block done
+    const monthPrefix = today.slice(0, 7);
+    const monthName = new Date(today + 'T12:00:00').toLocaleString('en-US', { month: 'long' });
+    let monthWorkouts = 0;
+    Object.keys(PROGRAM).forEach(k => {
+      if (!k.startsWith(monthPrefix) || k > today) return;
+      const bl = PROGRAM[k] || [];
+      if (!bl.length || isRestDay(bl)) return;
+      if (finishedDates.has(k) || bl.some(b => tkData[b.id]?.done)) monthWorkouts++;
+    });
 
     stats.innerHTML = `
       <div class="stat ${weekDone === weekBlocks.length && weekBlocks.length ? 'good' : ''}">
@@ -2854,8 +2864,8 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       <div class="stat ${pct >= 75 ? 'good' : ''}">
         <div class="k">Progress</div><div class="v">${pct}<small>%</small></div>
       </div>
-      <div class="stat ${streak >= 3 ? 'good' : ''}">
-        <div class="k">Streak</div><div class="v">${streak}<small>day${streak === 1 ? '' : 's'}</small></div>
+      <div class="stat ${monthWorkouts >= 12 ? 'good' : ''}" title="Workouts done in ${monthName} — resets on the 1st">
+        <div class="k">${monthName}</div><div class="v">${monthWorkouts}<small>workout${monthWorkouts === 1 ? '' : 's'}</small></div>
       </div>
       <div class="stat">
         <div class="k">Sauna / Ice</div><div class="v"><span style="color:var(--danger)">${saunaIce.sauna}</span><small> / </small><span style="color:var(--cyan)">${saunaIce.ice}</span></div>
