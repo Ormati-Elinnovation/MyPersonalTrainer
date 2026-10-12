@@ -6383,6 +6383,9 @@ ${days}
     const per = lines.map(l => /^\s*([\d.,]+)(?:\s*[-–]\s*[\d.,]+)?\s*kg(?:\s*[x×]\s*(\d+))?\s*$/i.exec(l)).filter(Boolean);
     if (per.length) return per.map(m => ({ w: num(m[1]), r: m[2] ? +m[2] : null }));
     // bare "80×5" / "80×5, 90×5" (no 'kg'): weight×reps, weight must look like a load (≥ 10)
+    // one bare set per line: "92.5x5\n95x5\n97.5x5" → all lines (not just the first)
+    const bare = lines.map(l => /^\s*([\d.]+)\s*[x×]\s*(\d+)\s*$/i.exec(l)).filter(Boolean);
+    if (bare.length > 1 && bare.every(m => +m[1] >= 10)) return bare.map(m => ({ w: +m[1], r: +m[2] }));
     for (const l of lines){
       const parts = l.split(/\s*[\/,]\s*/).filter(Boolean);
       const ms = parts.map(t => /^\s*([\d.]+)\s*[x×]\s*(\d+)\s*$/i.exec(t));
