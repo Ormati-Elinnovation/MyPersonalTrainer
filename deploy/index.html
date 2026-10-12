@@ -4119,10 +4119,13 @@ ${days}
   function injectTracker(block, key, b){
     let scoreType = inferScoreType(b);   // explicit, or auto-detected from the workout
     if (isAmrapBlock(b)) scoreType = 'rounds';
-    const gymDef = !isAmrapBlock(b) ? gymPrForBlock(b) : null;
-    if (gymDef) scoreType = 'gym';
+    const gymDef = (!isAmrapBlock(b) && scoreType !== 'weight') ? gymPrForBlock(b) : null;
     // Metcon / AMRAP scored in reps → log rounds + reps separately (no mental maths)
     if (scoreType === 'reps' && (/metcon|conditioning/i.test(b?.cat || '') || /\bamrap\b|\bemom\b|as many rounds|\bcindy\b/i.test((b?.name||'') + ' ' + (b?.body||'')))) scoreType = 'rounds';
+    // Skill / gymnastics sets (no load): per-set reps|sec with ✓ / ✗, prefilled set by set from the plan — like weightlifting
+    const setPlan = (!isAmrapBlock(b) && scoreType !== 'weight') ? setPlanFor(b) : null;
+    if (gymDef || setPlan) scoreType = 'gym';
+    const setUnit = (setPlan && setPlan.unit) || (gymDef && gymDef.lbl) || 'reps';
     const state = tkData[key] = Object.assign({ done:false, notes:'', results:[], sauna:false, ice:false }, tkData[key] || {});
     let addHtml;
     if (scoreType === 'weight'){
@@ -4136,8 +4139,7 @@ ${days}
         </form>`;
     } else if (scoreType === 'gym'){
       // per-set reps or seconds, prefilled from the title ("6×3" → 3, "4×40 sec" → 40)
-      const gm = /\b\d+\s*[x×]\s*(\d+)\b/.exec(String(b?.name||''));
-      addHtml = `<form class="tk-add tk-gym"><input class="tk-w" type="number" min="0" step="1" inputmode="numeric" placeholder="${gymDef.lbl}" value="${gm ? gm[1] : ''}" /><span class="tk-x" style="min-width:34px">${gymDef.lbl}</span><button type="submit" class="tk-ok" data-mark="ok" aria-label="Done" title="Done">✓</button></form>`;
+      addHtml = `<form class="tk-add tk-gym"><input class="tk-w" type="number" min="0" step="1" inputmode="numeric" placeholder="${setUnit}" /><span class="tk-x" style="min-width:34px">${setUnit}</span><button type="submit" class="tk-ok" data-mark="ok" aria-label="Done" title="Done">✓</button><button type="submit" class="tk-fail" data-mark="fail" aria-label="Missed" title="Missed">✗</button></form>`;
     } else if (scoreType === 'reps'){
       addHtml = `<form class="tk-add"><input type="number" step="1" inputmode="numeric" placeholder="Reps / rounds" /><button type="submit" aria-label="Add">+</button></form>`;
     } else if (scoreType === 'time'){
@@ -4229,7 +4231,7 @@ ${days}
         setTimeout(() => { updateDayProgress(); renderCalendar(); renderHeroStats(); }, 0);
       }
       saveTrackerForBlock(key, state); renderList();
-      if (b) { if (scoreType === 'gym') maybeGymPr(b, v); else maybeAutoPr(b, v); }
+      if (b) { if (scoreType === 'gym') { if (gymDef) maybeGymPr(b, v); } else maybeAutoPr(b, v); }
       // First result on an unlabeled block → persist the inferred type so leaderboards can rank it.
       if (b && !b.score_type && scoreType){
         b.score_type = (scoreType === 'rounds' || scoreType === 'gym') ? 'reps' : scoreType; b.score_dir = scoreType === 'time' ? 'low' : 'high';
@@ -4262,6 +4264,7 @@ ${days}
     } else {
       const form = tracker.querySelector('.tk-add');
       const input = form.querySelector('.tk-w') || form.querySelector('input');   // reps field sits left of weight
+      let curUnit = setUnit;
       form.addEventListener('submit', (e) => {
         e.preventDefault();
         let v = input.value.trim(); if (!v) return;
@@ -4270,9 +4273,8 @@ ${days}
           const rpEl = form.querySelector('.tk-reps'); const rp = parseInt(rpEl?.value, 10) || 1;   // empty field / no reps in title → 1
           v = `${n} kg${rp > 0 ? ` × ${rp}` : ''} ${mark === 'fail' ? MARK_FAIL : MARK_OK}`; }
         else if (scoreType === 'reps'){ const n = parseInt(v,10); if (isNaN(n)) return; v = `${n} reps`; }
-        else if (scoreType === 'gym'){ const n = parseFloat(v); if (!(n >= 0)) return; v = `${n} ${gymDef.lbl}`; }
+        else if (scoreType === 'gym'){ const n = parseFloat(v); if (!(n >= 0)) return; v = `${n} ${curUnit} ${mark === 'fail' ? MARK_FAIL : MARK_OK}`; }
         addResult(v);
-        if (scoreType === 'gym') return;   // keep the planned number for the next set
         input.value = '';
         const rpEl = form.querySelector('.tk-reps'); if (rpEl) rpEl.value = defaultRepsFor(b) || 1;
         prefillNext();
@@ -4280,6 +4282,14 @@ ${days}
       // prefill next set from the plan (title/body): weight + reps — just tap ✓ or edit
       const plan = scoreType === 'weight' ? plannedSets(b) : [];
       prefillNext = () => {
+        if (scoreType === 'gym'){   // next planned set (last value repeats when the plan runs out)
+          const sets = setPlan ? setPlan.sets : [];
+          const p = sets.length ? sets[Math.min(state.results.length, sets.length - 1)] : null;
+          input.value = p ? String(p.v) : '';
+          curUnit = (p && p.u) || setUnit;
+          const ux = form.querySelector('.tk-x'); if (ux) ux.textContent = curUnit;
+          input.placeholder = curUnit; return;
+        }
         if (scoreType !== 'weight') return;
         const rpEl = form.querySelector('.tk-reps');
         const p = plan.length ? plan[Math.min(state.results.length, plan.length - 1)] : null;
@@ -5451,6 +5461,7 @@ ${days}
   async function maybeGymPr(b, v){
     const def = gymPrForBlock(b); if (!def) return;
     if (resultMark(v) === 'fail') return;
+    const ru = (/[a-z]+/i.exec(resultText(v)) || [''])[0]; if (ru && ru !== def.lbl) return;   // e.g. HSW logged in m vs PR in steps
     const val = parseFloat(resultText(v)); if (!(val > 0)) return;
     const cur = GYM_PRS[def.name];
     if (cur && cur.value != null && val <= +cur.value) return;
@@ -6392,6 +6403,24 @@ ${days}
       if (parts.length && ms.every(Boolean) && ms.every(m => +m[1] >= 10)) return ms.map(m => ({ w: +m[1], r: +m[2] }));
     }
     return [];
+  }
+  // Non-weight set plan: "Set 1: 3 reps / Set 2: 4 reps" or title "Strict Pull-Up — 6×3" / "4×40 sec".
+  // → { unit:'reps'|'sec'|'steps', vals:[3,3,3...] } or null. Metcons / for-time / cardio never qualify.
+  function setPlanFor(b){
+    const name = String(b?.name || ''), body = String(b?.body || '');
+    if (/metcon|conditioning|cardio/i.test(b?.cat || '')) return null;
+    if (/\bfor time\b|\bamrap\b|as many|\brft\b|chipper|\brun\b|\brow(ing)?\b|\bswim\b|\bbike\b|\berg\b|warm-?up|cool-?down|stretch|mobility/i.test(name)) return null;
+    const unitOf = t => /\bsec|\bs\b|seconds/i.test(t) ? 'sec' : /\bsteps?\b/i.test(t) ? 'steps' : /^\s*m\b|met(er|re)s?/i.test(t) ? 'm' : 'reps';
+    // every "Set N: …" line in order — blocks that alternate two drills restart at Set 1, so keep them all
+    const sets = [];
+    body.split(/\n/).forEach(l => {
+      const m = /^\s*set\s*\d+\s*[:\-–]\s*(\d+(?:\.\d+)?)(?:\s*-\s*[\d.]+)?\s*([a-z ]*)/i.exec(l);
+      if (m) sets.push({ v: +m[1], u: unitOf(m[2] || '') });
+    });
+    if (sets.length >= 2) return { unit: sets[0].u, sets };
+    const t = /(?<![:\d.])(\d{1,2})\s*[x×]\s*(\d+(?:\.\d+)?)(?!\s*(?:cal|kg|lb|%|[.:(+\d]))(\s*(?:sec|s\b|steps?|m\b))?/i.exec(name);
+    if (t && +t[1] >= 1) { const u = unitOf(t[3] || ''); return { unit: u, sets: Array.from({ length: +t[1] }, () => ({ v: +t[2], u })) }; }
+    return null;
   }
   // default reps from the block title: "Front Squat · 4×5" → 5. Complexes "4×(2+1)" / ranges → none.
   function defaultRepsFor(b){
