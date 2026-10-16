@@ -3506,7 +3506,7 @@ ${days}
     el.querySelector('.block-edit:not(.block-lb)').addEventListener('click', () => openModal(b.id));
     const lb = el.querySelector('.block-lb');
     if (lb) lb.addEventListener('click', () => openBlockLeaderboard(originId, tName(b)));
-    if (b.timer) initTimer(el.querySelector('.timer'));
+    if (b.timer) initTimer(el.querySelector('.timer'), b.id);
     injectTracker(el, b.id, b);
     return el;
   }
@@ -3723,7 +3723,10 @@ ${days}
     id = setInterval(tick, 1000);
   }
 
-  function initTimer(el){
+  // Block timers survive re-renders: logging a set saves the tracker → realtime reload rebuilds the
+  // day's blocks. State lives here per block id so a running clock keeps running in the new DOM.
+  const BLOCK_TIMERS = {};
+  function initTimer(el, blockId){
     const mode = el.dataset.mode || 'stopwatch';
     const duration = +el.dataset.duration || 0;
     const interval = +el.dataset.interval || 60;
@@ -3731,6 +3734,9 @@ ${days}
     const work     = +el.dataset.work     || 0;
     const rest     = +el.dataset.rest     || 0;
     let running = false, elapsed = 0, lastSecond = -1, lastTickMs = 0, raf;
+    const regKey = blockId ? `${blockId}|${mode}|${duration}|${interval}|${rounds}|${work}|${rest}` : null;
+    const saved = regKey ? BLOCK_TIMERS[regKey] : null;
+    const persist = () => { if (regKey) BLOCK_TIMERS[regKey] = { running, elapsed, lastTickMs, lastSecond, done: el.classList.contains('done'), owner: el }; };
     const dom = { play: el.querySelector('.t-play'), reset: el.querySelector('.t-reset'),
       time: el.querySelector('.t-time'), meta: el.querySelector('.t-meta'), bar: el.querySelector('.t-bar > span') };
 
@@ -3791,8 +3797,14 @@ ${days}
     let hasWakeLock = false;
     function tick(){
       if (!running) return;
+      if (!el.isConnected){   // replaced by a re-render → the new instance owns the clock now
+        if (raf){ clearInterval(raf); raf = null; }
+        if (hasWakeLock){ hasWakeLock = false; releaseWakeLock(); }
+        running = false; return;
+      }
       const now = performance.now();
       elapsed += (now - lastTickMs) / 1000; lastTickMs = now;
+      persist();
       const tot = total();
       if (tot !== Infinity && elapsed >= tot){
         elapsed = tot; running = false;
@@ -3802,6 +3814,7 @@ ${days}
         try { navigator.vibrate && navigator.vibrate([120,80,120]); } catch {}
         beep(880,.45,'sine',.3); setTimeout(()=>beep(1320,.5,'sine',.3), 200);
         if (hasWakeLock){ hasWakeLock = false; releaseWakeLock(); }
+        persist();
         return;
       }
       handleBeeps(); render();
@@ -3814,6 +3827,7 @@ ${days}
       if (raf) clearInterval(raf);
       raf = setInterval(tick, 100); // interval instead of rAF: keeps ticking (and beeping) when frames are throttled
       if (!hasWakeLock){ hasWakeLock = true; acquireWakeLock(); }
+      persist();
     }
     function toggle(){
       ensureAudio();
@@ -3824,20 +3838,38 @@ ${days}
         dom.play.innerHTML = PLAY;
         if (raf){ clearInterval(raf); raf = null; }
         if (hasWakeLock){ hasWakeLock = false; releaseWakeLock(); }
+        persist();
       } else {
-        if (elapsed < 0.1) runCountdown(() => startNow());
+        if (elapsed < 0.1) runCountdown(() => { if (el.isConnected) startNow(); else resumeIn(); });
         else startNow();
       }
     }
+    // countdown finished after a re-render → start the clock in the live copy of this block
+    function resumeIn(){
+      const live = regKey && [...document.querySelectorAll('.block')].find(x => x.dataset.id === blockId)?.querySelector('.timer');
+      if (live && live._startFresh) live._startFresh();
+    }
+    el._startFresh = () => { if (!running) startNow(); };
     function reset(){
       if (raf){ clearInterval(raf); raf = null; }
       running = false; elapsed = 0; lastSecond = -1;
       el.classList.remove('running','done','rest-phase');
       dom.play.innerHTML = PLAY; render();
       if (hasWakeLock){ hasWakeLock = false; releaseWakeLock(); }
+      if (regKey) delete BLOCK_TIMERS[regKey];
     }
     dom.play.addEventListener('click', toggle);
     dom.reset.addEventListener('click', reset);
+    // restore a clock that was running / paused / finished before this block was re-rendered
+    if (saved){
+      elapsed = saved.elapsed; lastSecond = saved.lastSecond;
+      if (saved.done) el.classList.add('done');
+      if (saved.running){
+        elapsed += (performance.now() - saved.lastTickMs) / 1000;
+        lastSecond = Math.floor(elapsed);   // no burst of catch-up beeps
+        startNow();
+      }
+    }
     render();
   }
 
