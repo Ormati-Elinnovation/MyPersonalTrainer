@@ -1975,8 +1975,34 @@
   /* ============ SUPABASE ============ */
   const SUPABASE_URL = 'https://trpvmydhkdjybpqcciov.supabase.co';
   const SUPABASE_KEY = 'sb_publishable_l_qO2zQAJlPcM_fTMC7MmQ_UA00QnVP';
+  // Session storage that survives: localStorage first, mirrored into IndexedDB. If iOS/Safari drops
+  // localStorage, the session is restored from IDB → users stay signed in until they tap Sign Out.
+  const durableAuthStorage = (() => {
+    let dbp = null;
+    const db = () => dbp ??= new Promise((res) => {
+      try { const r = indexedDB.open('norep-auth', 1);
+        r.onupgradeneeded = () => r.result.createObjectStore('kv');
+        r.onsuccess = () => res(r.result); r.onerror = () => res(null);
+      } catch { res(null); }
+    });
+    const idb = async (mode, fn) => { const d = await db(); if (!d) return null;
+      return new Promise((res) => { try { const tx = d.transaction('kv', mode); const q = fn(tx.objectStore('kv'));
+        tx.oncomplete = () => res(q && q.result); tx.onerror = () => res(null); } catch { res(null); } }); };
+    return {
+      async getItem(k){
+        let v = null; try { v = localStorage.getItem(k); } catch {}
+        if (v != null) return v;
+        v = await idb('readonly', st => st.get(k));
+        if (v != null){ try { localStorage.setItem(k, v); } catch {} }
+        return v ?? null;
+      },
+      async setItem(k, v){ try { localStorage.setItem(k, v); } catch {} await idb('readwrite', st => st.put(v, k)); },
+      async removeItem(k){ try { localStorage.removeItem(k); } catch {} await idb('readwrite', st => st.delete(k)); }
+    };
+  })();
+  try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch {}
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storage: durableAuthStorage }
   });
 
   let currentUser = null;
@@ -3651,6 +3677,9 @@ ${days}
       wakeLock = null;
     }
   }
+  document.addEventListener('visibilitychange', () => {
+    try { if (document.visibilityState === 'visible') sb.auth.startAutoRefresh(); else sb.auth.stopAutoRefresh(); } catch {}
+  });
   document.addEventListener('visibilitychange', async () => {
     // Browsers suspend the AudioContext while the page is hidden. Without this the
     // 3-2-1 beeps stay dead for the rest of the session once the screen has slept.
@@ -5371,9 +5400,27 @@ ${days}
     applyRoleVisibility();
     await maybeRedeemPendingInvite();
     await refreshSelfLock();
+    await maybeDefaultToTrainee();
     await bootUser();
     if (currentProfile && !currentProfile.onboarded_at) openOnboarding();
     else maybeAutoTutorial();
+  }
+
+  // A coach with no program of her own who coaches exactly one athlete lands on that athlete's plan.
+  async function maybeDefaultToTrainee(){
+    try {
+      if (!currentProfile?.is_coach) return;
+      const { count } = await sb.from('programs').select('id', { count:'exact', head:true })
+        .eq('user_id', currentUser.id).is('deleted_at', null);
+      if (count) return;
+      const { data: links } = await sb.from('crossfit_coach_links').select('trainee_user_id')
+        .eq('coach_user_id', currentUser.id).eq('status', 'active').not('trainee_user_id', 'is', null);
+      const ids = [...new Set((links||[]).map(l => l.trainee_user_id))];
+      if (ids.length !== 1) return;
+      const { data: prof } = await sb.from('profiles').select('display_name').eq('user_id', ids[0]).maybeSingle();
+      targetUserId = ids[0];
+      viewingTrainee = { user_id: ids[0], display_name: prof?.display_name || 'trainee' };
+    } catch(e){ console.warn('default trainee view', e); }
   }
 
   /* ---- viewing another user's data (coach / admin) ---- */
