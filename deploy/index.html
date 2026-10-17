@@ -186,6 +186,7 @@
   .cal-extra-dot{width:6px;height:6px;border-radius:50%;display:inline-block;flex-shrink:0}
   .cal-extra-dot.sauna{background:var(--danger)}
   .cal-extra-dot.ice{background:var(--cyan)}
+  .cal-extra-dot.workout{background:var(--good)}
   .cal-day.today{border-color:var(--blue);background:linear-gradient(180deg,rgba(167,200,234,.18),var(--panel))}
   .cal-day.today .num{color:var(--blue-3)}
   .cal-day.selected{background:linear-gradient(135deg,var(--blue),var(--primary));border-color:transparent;box-shadow:0 6px 20px var(--glow)}
@@ -2770,8 +2771,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       const d = parseKey(k);
       const has = PROGRAM[k] && PROGRAM[k].length > 0;
       const cls = [has ? 'has-workouts' : '', k === today ? 'today' : '', k === selectedKey ? 'selected' : ''].filter(Boolean).join(' ');
-      const dayExtra = tkDataByDate(k);
-      const extraDots = `${dayExtra.sauna ? '<span class="cal-extra-dot sauna"></span>' : ''}${dayExtra.ice ? '<span class="cal-extra-dot ice"></span>' : ''}`;
+      const extraDots = extraDotsHTML(k);
       html += `<div class="cal-day ${cls}" data-key="${k}"><div class="dow">${DOWS_SHORT[d.getDay()]}</div><div class="num">${d.getDate()}</div>${extraDots ? `<div class="cal-extra-dots">${extraDots}</div>` : '<div class="cal-extra-dots"></div>'}</div>`;
     }
     strip.innerHTML = html;
@@ -2783,6 +2783,18 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
   document.getElementById('calPrev').addEventListener('click', () => { weekStart = addDays(weekStart, -7); renderCalendar(); });
   document.getElementById('calNext').addEventListener('click', () => { weekStart = addDays(weekStart,  7); renderCalendar(); });
   document.getElementById('calToday').addEventListener('click', () => { selectedKey = todayKey(); weekStart = startOfWeek(selectedKey); renderCalendar(); renderDayDetail(); });
+
+  // Training day (not a rest day) that was actually trained: Finish Day pressed or ≥1 block done.
+  // Same rule as the Workouts tile / streak.
+  function isRestDayBlocks(bl){ return !!bl.length && bl.every(b => b.icon === 'i-rest' || /\brest\b/i.test(b.cat || '')); }
+  function trainedOn(k){
+    const bl = PROGRAM[k] || [];
+    return !!bl.length && !isRestDayBlocks(bl) && (finishedDates.has(k) || bl.some(b => tkData[b.id]?.done));
+  }
+  function extraDotsHTML(k){
+    const x = tkDataByDate(k);
+    return `${trainedOn(k) ? '<span class="cal-extra-dot workout" title="Workout"></span>' : ''}${x.sauna ? '<span class="cal-extra-dot sauna" title="Sauna"></span>' : ''}${x.ice ? '<span class="cal-extra-dot ice" title="Ice"></span>' : ''}`;
+  }
 
   /* ============ DAY DETAIL ============ */
   function countDoneForDate(dateKey){
@@ -3071,8 +3083,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       } else {
         blocksHtml = `<div class="wt-empty">No workouts</div>`;
       }
-      const wtExtra = tkDataByDate(k);
-      const wtExtraDots = `${wtExtra.sauna ? '<span class="cal-extra-dot sauna"></span>' : ''}${wtExtra.ice ? '<span class="cal-extra-dot ice"></span>' : ''}`;
+      const wtExtraDots = extraDotsHTML(k);
       html += `<div class="wt-col ${cls}" data-date="${k}">
         <div class="wt-col-head">
           <div class="wt-dow">${DOWS_SHORT[d.getDay()]}</div>
