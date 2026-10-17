@@ -3492,6 +3492,12 @@ ${days}
     if (tm === 'stopwatch') return 'time';
     if (/\bamrap\b|as many|max reps|max effort|unbroken|rounds ?\+ ?reps|\bcindy\b|\bmax\b/.test(t)) return 'reps';
     if (tm === 'countdown') return 'reps';
+    // Bodyweight gymnastics (pull-up, muscle-up, dip, T2B, handstand…) score in reps unless an explicit load is written —
+    // words like "easy and clean" or "press-out" in the cues must not turn them into a kg field.
+    const nm = ((b&&b.name)||'').toLowerCase();
+    const gymName = /pull-?up|muscle-?up|\bbmu\b|\brmu\b|\bdips?\b|toes-?to-?bar|\bt2b\b|handstand|\bhsw\b|\bhspu\b|ring row|hang\b|l-?sit|l-?stand|hollow|kip/.test(nm);
+    const explicitLoad = /@\s*\d|\d+(\.\d+)?\s*kg|\d+\s*lb|1rm|\b\d\s*rm\b|%/.test(t);
+    if (gymName && !explicitLoad) return (tm === 'emom' || tm === 'interval') ? 'time' : null;
     if (/@\s*\d|\d+\s*kg|\d+\s*lb|1rm|\b\d\s*rm\b|%|\bsnatch\b|clean|jerk|squat|deadlift|press|bench|thruster/.test(t)) return 'weight';
     if (tm === 'emom' || tm === 'interval') return 'time';
     return null;
