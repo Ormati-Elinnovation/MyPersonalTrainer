@@ -184,9 +184,16 @@
   .cal-day .num{font-size:22px;font-weight:800;color:var(--ink);font-family:'Space Grotesk';line-height:1.1}
   .cal-extra-dots{display:flex;justify-content:center;align-items:center;gap:4px;min-height:8px;margin-top:4px;width:100%}
   .cal-extra-dot{width:6px;height:6px;border-radius:50%;display:inline-block;flex-shrink:0}
-  .cal-extra-dot.sauna{background:var(--danger)}
-  .cal-extra-dot.ice{background:var(--cyan)}
-  .cal-extra-dot.workout{background:var(--good)}
+  .cal-extra-dot.sauna{background:#e3202f;box-shadow:0 0 0 1px rgba(255,255,255,.55)}
+  .cal-extra-dot.ice{background:#1a4fc4;box-shadow:0 0 0 1px rgba(255,255,255,.55)}
+  /* trained-day fill: pastel green = workout, pastel sky = swim, split = both */
+  .cal-day.d-workout,.wt-col.d-workout .wt-col-head{background:#cdeed3 !important;border-color:#a9dcb3 !important}
+  .cal-day.d-swim,.wt-col.d-swim .wt-col-head{background:#cfe8fb !important;border-color:#a7d2f2 !important}
+  .cal-day.d-both,.wt-col.d-both .wt-col-head{background:linear-gradient(135deg,#cdeed3 50%,#cfe8fb 50%) !important;border-color:#b3d9cf !important}
+  .cal-day.d-workout .dow,.cal-day.d-swim .dow,.cal-day.d-both .dow,.wt-col.d-workout .wt-dow,.wt-col.d-swim .wt-dow,.wt-col.d-both .wt-dow{color:#4b5d70 !important}
+  .cal-day.d-workout .num,.cal-day.d-swim .num,.cal-day.d-both .num,.wt-col.d-workout .wt-num,.wt-col.d-swim .wt-num,.wt-col.d-both .wt-num{color:#14263b !important}
+  .cal-day.selected.d-workout,.cal-day.selected.d-swim,.cal-day.selected.d-both{border:2px solid var(--blue) !important;box-shadow:0 0 0 2px var(--glow),0 6px 20px var(--glow) !important}
+  .wt-col.d-workout .wt-col-head,.wt-col.d-swim .wt-col-head,.wt-col.d-both .wt-col-head{border-radius:10px}
   .cal-day.today{border-color:var(--blue);background:linear-gradient(180deg,rgba(167,200,234,.18),var(--panel))}
   .cal-day.today .num{color:var(--blue-3)}
   .cal-day.selected{background:linear-gradient(135deg,var(--blue),var(--primary));border-color:transparent;box-shadow:0 6px 20px var(--glow)}
@@ -2770,7 +2777,8 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       const k = addDays(weekStart, i);
       const d = parseKey(k);
       const has = PROGRAM[k] && PROGRAM[k].length > 0;
-      const cls = [has ? 'has-workouts' : '', k === today ? 'today' : '', k === selectedKey ? 'selected' : ''].filter(Boolean).join(' ');
+      const tk = trainKind(k);
+      const cls = [has ? 'has-workouts' : '', k === today ? 'today' : '', k === selectedKey ? 'selected' : '', tk ? 'd-' + tk : ''].filter(Boolean).join(' ');
       const extraDots = extraDotsHTML(k);
       html += `<div class="cal-day ${cls}" data-key="${k}"><div class="dow">${DOWS_SHORT[d.getDay()]}</div><div class="num">${d.getDate()}</div>${extraDots ? `<div class="cal-extra-dots">${extraDots}</div>` : '<div class="cal-extra-dots"></div>'}</div>`;
     }
@@ -2791,9 +2799,21 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const bl = PROGRAM[k] || [];
     return !!bl.length && !isRestDayBlocks(bl) && (finishedDates.has(k) || bl.some(b => tkData[b.id]?.done));
   }
+  // 'workout' | 'swim' | 'both' | '' — what kind of training was done on k (drives the pastel day fill)
+  function isSwimBlock(b){ return b.icon === 'i-swim' || /swim/i.test(b.cat || '') || /\bswim/i.test(b.name || ''); }
+  function trainKind(k){
+    if (!trainedOn(k)) return '';
+    const bl = (PROGRAM[k] || []).filter(b => b.icon !== 'i-rest');
+    let src = bl.filter(b => tkData[b.id]?.done);
+    if (!src.length) src = bl;
+    const core = src.filter(b => !/^(Warm-?Up|Cooldown|Hip Reset|Inner Thighs|Mobility|Stretch)/i.test((b.name || '').replace(/^\s*\[[^\]]*\]\s*/, '')) && !/warm-?up|mobility|recovery/i.test(b.cat || ''));
+    const use = core.length ? core : src;
+    const sw = use.some(isSwimBlock), wo = use.some(b => !isSwimBlock(b));
+    return sw && wo ? 'both' : sw ? 'swim' : 'workout';
+  }
   function extraDotsHTML(k){
     const x = tkDataByDate(k);
-    return `${trainedOn(k) ? '<span class="cal-extra-dot workout" title="Workout"></span>' : ''}${x.sauna ? '<span class="cal-extra-dot sauna" title="Sauna"></span>' : ''}${x.ice ? '<span class="cal-extra-dot ice" title="Ice"></span>' : ''}`;
+    return `${x.sauna ? '<span class="cal-extra-dot sauna" title="Sauna"></span>' : ''}${x.ice ? '<span class="cal-extra-dot ice" title="Ice"></span>' : ''}`;
   }
 
   /* ============ DAY DETAIL ============ */
@@ -3084,7 +3104,8 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
         blocksHtml = `<div class="wt-empty">No workouts</div>`;
       }
       const wtExtraDots = extraDotsHTML(k);
-      html += `<div class="wt-col ${cls}" data-date="${k}">
+      const wtTk = trainKind(k);
+      html += `<div class="wt-col ${cls} ${wtTk ? 'd-' + wtTk : ''}" data-date="${k}">
         <div class="wt-col-head">
           <div class="wt-dow">${DOWS_SHORT[d.getDay()]}</div>
           <div class="wt-num">${d.getDate()}</div>
