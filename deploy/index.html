@@ -4224,6 +4224,8 @@ ${days}
     // Skill / gymnastics sets (no load): per-set reps|sec with ✓ / ✗, prefilled set by set from the plan — like weightlifting
     const setPlan = (!isAmrapBlock(b) && scoreType !== 'weight') ? setPlanFor(b) : null;
     if (gymDef || setPlan) scoreType = 'gym';
+    // Swim blocks are always logged as distance in meters (Or: "always meters, for me and Alumit")
+    if (b && isSwimBlock(b)) scoreType = 'distance';
     const setUnit = (setPlan && setPlan.unit) || (gymDef && gymDef.lbl) || 'reps';
     const state = tkData[key] = Object.assign({ done:false, notes:'', results:[], sauna:false, ice:false }, tkData[key] || {});
     let addHtml;
@@ -4239,6 +4241,8 @@ ${days}
     } else if (scoreType === 'gym'){
       // per-set reps or seconds, prefilled from the title ("6×3" → 3, "4×40 sec" → 40)
       addHtml = `<form class="tk-add tk-gym"><input class="tk-w" type="number" min="0" step="1" inputmode="numeric" placeholder="${setUnit}" /><span class="tk-x" style="min-width:34px">${setUnit}</span><button type="submit" class="tk-ok" data-mark="ok" aria-label="Done" title="Done">✓</button><button type="submit" class="tk-fail" data-mark="fail" aria-label="Missed" title="Missed">✗</button></form>`;
+    } else if (scoreType === 'distance'){
+      addHtml = `<form class="tk-add tk-dist"><input class="tk-w" type="number" min="0" step="25" inputmode="numeric" placeholder="meters" /><span class="tk-x" style="min-width:20px">m</span><button type="submit" aria-label="Add">+</button></form>`;
     } else if (scoreType === 'reps'){
       addHtml = `<form class="tk-add"><input type="number" step="1" inputmode="numeric" placeholder="Reps / rounds" /><button type="submit" aria-label="Add">+</button></form>`;
     } else if (scoreType === 'time'){
@@ -4330,10 +4334,10 @@ ${days}
         setTimeout(() => { updateDayProgress(); renderCalendar(); renderHeroStats(); }, 0);
       }
       saveTrackerForBlock(key, state); renderList();
-      if (b) { if (scoreType === 'gym') { if (gymDef) maybeGymPr(b, v); } else maybeAutoPr(b, v); }
+      if (b && scoreType !== 'distance') { if (scoreType === 'gym') { if (gymDef) maybeGymPr(b, v); } else maybeAutoPr(b, v); }
       // First result on an unlabeled block → persist the inferred type so leaderboards can rank it.
       if (b && !b.score_type && scoreType){
-        b.score_type = (scoreType === 'rounds' || scoreType === 'gym') ? 'reps' : scoreType; b.score_dir = scoreType === 'time' ? 'low' : 'high';
+        b.score_type = (scoreType === 'rounds' || scoreType === 'gym' || scoreType === 'distance') ? 'reps' : scoreType; b.score_dir = scoreType === 'time' ? 'low' : 'high';
         sb.from('blocks').update({ score_type: b.score_type, score_dir: b.score_dir }).eq('id', key).then(()=>{});
       }
     }
@@ -4372,6 +4376,7 @@ ${days}
           const rpEl = form.querySelector('.tk-reps'); const rp = parseInt(rpEl?.value, 10) || 1;   // empty field / no reps in title → 1
           v = `${n} kg${rp > 0 ? ` × ${rp}` : ''} ${mark === 'fail' ? MARK_FAIL : MARK_OK}`; }
         else if (scoreType === 'reps'){ const n = parseInt(v,10); if (isNaN(n)) return; v = `${n} reps`; }
+        else if (scoreType === 'distance'){ const n = parseFloat(v); if (!(n > 0)) return; v = `${Math.round(n)} m`; }
         else if (scoreType === 'gym'){ const n = parseFloat(v); if (!(n >= 0)) return; v = `${n} ${curUnit} ${mark === 'fail' ? MARK_FAIL : MARK_OK}`; }
         addResult(v);
         input.value = '';
