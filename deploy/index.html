@@ -1181,6 +1181,7 @@
     <nav class="side-nav">
       <button class="active" data-stab="profile"><svg><use href="#i-user"/></svg> Profile</button>
       <button data-stab="prs"><svg><use href="#i-barbell"/></svg> PRs &amp; Benchmarks</button>
+      <button data-stab="swim"><svg><use href="#i-run"/></svg> Swim Stats</button>
       <button data-stab="program"><svg><use href="#i-clock"/></svg> Programs</button>
       <button data-stab="archive"><svg><use href="#i-archive"/></svg> Archive <span class="badge" id="archiveBadge">0</span></button>
       <button data-stab="search"><svg><use href="#i-search"/></svg> Search History</button>
@@ -1238,6 +1239,11 @@
           </div>
         </div>
         <button class="btn btn-primary" id="profileSave" style="width:100%">Save Profile</button>
+      </div>
+      <div class="side-section" data-section="swim">
+        <h4>Swim — distance &amp; water temperature</h4>
+        <div class="group" style="padding:10px"><div style="position:relative;height:300px"><canvas id="swimChart"></canvas></div></div>
+        <div id="swimSummary" style="color:var(--ink-soft);font-size:13px;line-height:1.5;padding:4px 2px">Loading…</div>
       </div>
       <div class="side-section" data-section="prs">
         <div id="prsContainer"><div class="search-empty">Loading…</div></div>
@@ -4242,7 +4248,7 @@ ${days}
       // per-set reps or seconds, prefilled from the title ("6×3" → 3, "4×40 sec" → 40)
       addHtml = `<form class="tk-add tk-gym"><input class="tk-w" type="number" min="0" step="1" inputmode="numeric" placeholder="${setUnit}" /><span class="tk-x" style="min-width:34px">${setUnit}</span><button type="submit" class="tk-ok" data-mark="ok" aria-label="Done" title="Done">✓</button><button type="submit" class="tk-fail" data-mark="fail" aria-label="Missed" title="Missed">✗</button></form>`;
     } else if (scoreType === 'distance'){
-      addHtml = `<form class="tk-add tk-dist"><input class="tk-w" type="number" min="0" step="25" inputmode="numeric" placeholder="meters" /><span class="tk-x" style="min-width:20px">m</span><button type="submit" aria-label="Add">+</button></form>`;
+      addHtml = `<form class="tk-add tk-dist"><input class="tk-w" type="number" min="0" step="25" inputmode="numeric" placeholder="Meters" style="flex:1.4" /><span class="tk-x" style="min-width:20px">m</span><input class="tk-temp" type="number" min="0" max="45" step="0.5" inputmode="decimal" placeholder="Water" style="flex:1" title="Water temperature — optional" /><span class="tk-x" style="min-width:22px">°C</span><button type="submit" aria-label="Add">+</button></form>`;
     } else if (scoreType === 'reps'){
       addHtml = `<form class="tk-add"><input type="number" step="1" inputmode="numeric" placeholder="Reps / rounds" /><button type="submit" aria-label="Add">+</button></form>`;
     } else if (scoreType === 'time'){
@@ -4376,7 +4382,10 @@ ${days}
           const rpEl = form.querySelector('.tk-reps'); const rp = parseInt(rpEl?.value, 10) || 1;   // empty field / no reps in title → 1
           v = `${n} kg${rp > 0 ? ` × ${rp}` : ''} ${mark === 'fail' ? MARK_FAIL : MARK_OK}`; }
         else if (scoreType === 'reps'){ const n = parseInt(v,10); if (isNaN(n)) return; v = `${n} reps`; }
-        else if (scoreType === 'distance'){ const n = parseFloat(v); if (!(n > 0)) return; v = `${Math.round(n)} m`; }
+        else if (scoreType === 'distance'){ const n = parseFloat(v); if (!(n > 0)) return;
+          const tEl = form.querySelector('.tk-temp'); const tc = parseFloat(tEl?.value);
+          v = `${Math.round(n)} m` + (tc > 0 ? ` · ${Math.round(tc * 10) / 10}°C` : '');
+          if (tEl) tEl.value = ''; }
         else if (scoreType === 'gym'){ const n = parseFloat(v); if (!(n >= 0)) return; v = `${n} ${curUnit} ${mark === 'fail' ? MARK_FAIL : MARK_OK}`; }
         addResult(v);
         input.value = '';
@@ -4665,6 +4674,7 @@ ${days}
       if (btn.dataset.stab === 'program'){ renderProgramSummary(); renderProgramsList(); renderRecycleBin(); }
       if (btn.dataset.stab === 'search') document.getElementById('searchInput').focus();
       if (btn.dataset.stab === 'prs') renderPrs();
+      if (btn.dataset.stab === 'swim') renderSwimStats();
       if (btn.dataset.stab === 'admin') renderAdminPanel();
     });
   });
@@ -5281,6 +5291,66 @@ ${days}
         scales:{ y:{ beginAtZero:true, grid:{color:c.grid, drawTicks:false}, border:{display:false}, ticks:{ color:c.tick, callback:v=>v+' reps' } }, x:{ grid:{display:false}, border:{display:false}, ticks:{ color:c.tick } } }
       }
     });
+  }
+
+  /* ============ SWIM STATS (meters + water °C, one chart) ============ */
+  let swimChart;
+  function parseSwimResult(r){
+    const t = resultText(r);
+    const m = t.match(/(\d+(?:\.\d+)?)\s*m\b/i);
+    const c = t.match(/(\d+(?:\.\d+)?)\s*°\s*C/i);
+    return { m: m ? parseFloat(m[1]) : 0, c: c ? parseFloat(c[1]) : null };
+  }
+  async function renderSwimStats(){
+    const sum = document.getElementById('swimSummary'); if (!sum) return;
+    sum.textContent = 'Loading…';
+    try {
+      const uid = activeUserId();
+      const { data: blocks, error: e1 } = await sb.from('blocks').select('id,date,name,cat,icon')
+        .eq('user_id', uid).or('icon.eq.i-swim,cat.ilike.%swim%,name.ilike.%swim%').order('date');
+      if (e1) throw e1;
+      const ids = (blocks || []).filter(isSwimBlock).map(b => b.id);
+      const byId = Object.fromEntries((blocks || []).map(b => [b.id, b]));
+      let rows = [];
+      for (let i = 0; i < ids.length; i += 150){
+        const { data, error } = await sb.from('tracker').select('block_id,results').eq('user_id', uid).in('block_id', ids.slice(i, i + 150));
+        if (error) throw error; rows = rows.concat(data || []);
+      }
+      const days = {};
+      rows.forEach(r => (r.results || []).forEach(x => {
+        const p = parseSwimResult(x); const d = byId[r.block_id]?.date; if (!d) return;
+        if (!p.m && p.c == null) return;
+        const o = days[d] = days[d] || { m: 0, cs: [] };
+        o.m += p.m; if (p.c != null) o.cs.push(p.c);
+      }));
+      const dates = Object.keys(days).sort();
+      if (!dates.length){
+        if (swimChart){ swimChart.destroy(); swimChart = null; }
+        sum.innerHTML = 'No swims logged yet. Log meters (and optionally water °C) on any swim block.'; return;
+      }
+      const meters = dates.map(d => days[d].m || null);
+      const temps = dates.map(d => days[d].cs.length ? Math.round(days[d].cs.reduce((a, b) => a + b, 0) / days[d].cs.length * 10) / 10 : null);
+      const total = meters.reduce((a, b) => a + (b || 0), 0);
+      const tv = temps.filter(t => t != null);
+      sum.innerHTML = `<b>${dates.length}</b> swims · <b>${total.toLocaleString()}</b> m total · avg <b>${Math.round(total / dates.length).toLocaleString()}</b> m` +
+        (tv.length ? ` · water ${Math.min(...tv)}–${Math.max(...tv)}°C` : '');
+      await window._lazyLib.chart();
+      const c = chartColors();
+      if (swimChart) swimChart.destroy();
+      swimChart = new Chart(document.getElementById('swimChart').getContext('2d'), {
+        data: { labels: dates.map(d => fmtDateShort(d)), datasets: [
+          { type: 'bar', label: 'Distance (m)', data: meters, yAxisID: 'yM', backgroundColor: 'rgba(136,196,240,.55)', borderColor: '#5aa9e6', borderWidth: 1.5, borderRadius: 6, order: 2 },
+          { type: 'line', label: 'Water (°C)', data: temps, yAxisID: 'yC', borderColor: '#ff8a4d', backgroundColor: '#ff8a4d', borderWidth: 2.5, pointRadius: 4, tension: .3, spanGaps: true, order: 1 } ] },
+        options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+          plugins: { legend: { position: 'top', labels: { color: c.soft, boxWidth: 12 } },
+            tooltip: { backgroundColor: c.tooltipBg, titleColor: c.ink, bodyColor: c.ink,
+              callbacks: { label: ctx => ctx.parsed.y == null ? null : ctx.dataset.yAxisID === 'yM' ? `${ctx.parsed.y.toLocaleString()} m` : `${ctx.parsed.y}°C` } } },
+          scales: {
+            yM: { position: 'left', beginAtZero: true, grid: { color: c.grid }, ticks: { color: c.tick, callback: v => v + ' m' } },
+            yC: { position: 'right', suggestedMin: 15, suggestedMax: 32, grid: { display: false }, ticks: { color: '#ff8a4d', callback: v => v + '°' } },
+            x: { grid: { display: false }, ticks: { color: c.tick, maxRotation: 0, autoSkip: true } } } }
+      });
+    } catch (e){ console.warn('swim stats', e); sum.textContent = 'Could not load swim data.'; }
   }
 
   /* ============ BOOT ============ */
