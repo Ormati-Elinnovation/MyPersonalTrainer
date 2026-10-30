@@ -263,6 +263,17 @@
   .block > .block-head > h4{margin:0;line-height:1.2;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .block-edit{background:var(--panel-2);border:1px solid var(--line);color:var(--ink-soft);padding:6px 10px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:5px;transition:.2s;font-family:'Inter'}
   .block-edit:hover{background:var(--panel);border-color:var(--line-2);color:var(--ink)}
+  .block-edit.block-hist.on{background:var(--blue);color:var(--button-text);border-color:transparent}
+  .bh-panel{margin-top:10px;padding:10px 12px;background:var(--panel-3);border:1px solid var(--line);border-radius:12px;max-height:340px;overflow:auto}
+  .bh-panel .bh-h{font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:var(--blue-2);font-family:'Space Grotesk';font-weight:700;margin-bottom:6px;display:flex;justify-content:space-between;gap:8px}
+  .bh-row{padding:7px 0;border-top:1px solid var(--line);font-size:13px;line-height:1.45}
+  .bh-row:first-of-type{border-top:none}
+  .bh-row .bh-d{font-weight:700;color:var(--ink)}
+  .bh-row .bh-n{color:var(--ink-soft);font-size:12px}
+  .bh-row .bh-r{color:var(--ink);margin-top:2px;word-break:break-word}
+  .bh-row .bh-note{color:var(--muted);font-size:12px;font-style:italic}
+  .bh-row.bh-future{opacity:.55}
+  @media (max-width:520px){ .block-lb .bl-t{display:none} .block-lb{padding:6px 8px} }
   .block-edit svg{width:13px;height:13px}
   .block h4{margin:0 0 4px;font-size:12.5px;color:var(--blue-2);letter-spacing:1.2px;text-transform:uppercase;font-family:'Space Grotesk';font-weight:600}
   .block .name{font-size:17px;font-weight:700;color:var(--ink);margin-bottom:8px}
@@ -3539,7 +3550,8 @@ ${days}
         <div class="icon"><svg><use href="#${esc(b.icon)}"/></svg></div>
         <h4>${esc(b.cat)}</h4>
         <div style="display:flex;gap:6px;flex-shrink:0">
-          <button class="block-edit block-lb"><svg><use href="#i-group"/></svg>Leaderboard</button>
+          ${historyKey(b) ? '<button class="block-edit block-hist" title="What you did on this movement before"><svg><use href="#i-clock"/></svg>History</button>' : ''}
+          <button class="block-edit block-lb" title="Leaderboard"><svg><use href="#i-group"/></svg><span class="bl-t">Leaderboard</span></button>
           <button class="block-edit"><svg><use href="#i-edit"/></svg>Edit</button>
         </div>
       </div>
@@ -3547,12 +3559,85 @@ ${days}
       <div class="body" dir="auto">${linkify(esc(repsLeft(tBody(b))))}</div>
       ${timerHTML(b.timer)}
     `;
-    el.querySelector('.block-edit:not(.block-lb)').addEventListener('click', () => openModal(b.id));
+    el.querySelector('.block-edit:not(.block-lb):not(.block-hist)').addEventListener('click', () => openModal(b.id));
+    const hb = el.querySelector('.block-hist');
+    if (hb){ hb.addEventListener('click', () => toggleBlockHistory(el, b, hb));
+      if (HIST_OPEN.has(b.id)) setTimeout(() => { if (el.isConnected && !el.querySelector('.bh-panel')) toggleBlockHistory(el, b, hb, true); }, 0); }
     const lb = el.querySelector('.block-lb');
     if (lb) lb.addEventListener('click', () => openBlockLeaderboard(originId, tName(b)));
     if (b.timer) initTimer(el.querySelector('.timer'), b.id);
     injectTracker(el, b.id, b);
     return el;
+  }
+
+  /* ---- Per-block History: every earlier session of the same movement (like searching its name), inline ---- */
+  const HIST_SKIP = /^(warm-?up|cooldown|cool-?down|hip reset|rest day|recovery|mobility|stretch|video library|read first|amrap|emom|for time|metcon|wod|partner|chipper|inner thighs)/i;
+  function histNorm(t){
+    return String(t || '').toLowerCase().replace(/[‐-―\-]+/g, '-').replace(/\s*-\s*/g, '-')
+      .replace(/[^a-z0-9\- ]+/g, ' ').split(/\s+/).filter(Boolean).map(w => w.replace(/(?<=[a-z]{3})s$/, '')).join(' ')
+      .replace(/\bhsw\b/g, 'handstand walk').replace(/\b(t2b|ttb)\b/g, 'toes-to-bar').replace(/\bc2b\b/g, 'chest-to-bar')
+      .replace(/\bbmu\b/g, 'bar muscle-up').replace(/\brmu\b/g, 'ring muscle-up').replace(/\bhspu\b/g, 'handstand push-up')
+      .replace(/^-+|-+$/g, '').trim();
+  }
+  function historyKey(b){
+    if (!b) return '';
+    if (/metcon|conditioning|warm-?up|recovery/i.test(b.cat || '') || b.icon === 'i-rest') return '';
+    if (typeof isAmrapBlock === 'function' && isAmrapBlock(b)) return '';
+    let n = String(b.name || '').replace(/^\s*\[[^\]]*\]\s*/, '').replace(/^test\s*[—–:\-]\s*/i, '').replace(/^(max|best)\s+/i, '');
+    if (HIST_SKIP.test(n)) return '';
+    n = n.split(/\s+[—–·|]\s+|\s*[·(:@]|\s+\d|\s+[—–]\s*|\s+x\d/i)[0].trim();
+    n = n.replace(/\s+(\d.*)?$/, '').trim();
+    const k = histNorm(n);
+    if (/^\d|^(aerobic|swim prep|sweat|every minute|session)\b/.test(k)) return '';
+    return k.length >= 3 ? k : '';
+  }
+  const HIST_OPEN = new Set();   // keeps a History panel open across re-renders (realtime reload after logging a set)
+  let _histCache = null, _histAt = 0, _histUid = null;
+  async function historyData(){
+    const uid = activeUserId();
+    if (_histCache && _histUid === uid && Date.now() - _histAt < 30000) return _histCache;
+    const { data, error } = await sb.from('blocks').select('id,date,name,body,cat,icon').eq('user_id', uid).order('date', { ascending: false });
+    if (error) throw error;
+    const ids = (data || []).map(x => x.id); let tr = [];
+    for (let i = 0; i < ids.length; i += 200){
+      const r = await sb.from('tracker').select('block_id,done,results,notes').eq('user_id', uid).in('block_id', ids.slice(i, i + 200));
+      if (r.error) throw r.error; tr = tr.concat(r.data || []);
+    }
+    const t = Object.fromEntries(tr.map(x => [x.block_id, x]));
+    _histCache = (data || []).map(x => ({ ...x, tk: t[x.id] || null, nn: histNorm(String(x.name || '').replace(/^\s*\[[^\]]*\]\s*/, '')) }));
+    _histAt = Date.now(); _histUid = uid;
+    return _histCache;
+  }
+  async function toggleBlockHistory(el, b, btn, reopen){
+    let panel = el.querySelector('.bh-panel');
+    if (panel && !reopen){ panel.remove(); btn.classList.remove('on'); HIST_OPEN.delete(b.id); return; }
+    btn.classList.add('on'); HIST_OPEN.add(b.id);
+    panel = document.createElement('div'); panel.className = 'bh-panel';
+    panel.innerHTML = '<div class="search-empty">Loading…</div>';
+    const anchor = el.querySelector('.timer') || el.querySelector('.body');
+    anchor.after(panel);
+    const key = historyKey(b);
+    try {
+      const all = await historyData();
+      const here = b.date || selectedKey || todayKey();
+      const today = todayKey();
+      const hits = all.filter(x => x.id !== b.id && x.nn.includes(key));
+      const past = hits.filter(x => x.date < here && (x.tk?.done || (x.tk?.results || []).length || (x.tk?.notes || '').trim()));
+      const lbl = key.replace(/\b\w/g, c => c.toUpperCase());
+      if (!past.length){
+        panel.innerHTML = `<div class="bh-h"><span>History · ${esc(lbl)}</span></div><div class="bh-note">Nothing logged before ${esc(fmtDateShort(here))} for this movement yet.</div>`;
+        return;
+      }
+      const rows = past.slice(0, 40).map(x => {
+        const res = (x.tk?.results || []).map(r => resultText(r).replace(/^\s*([\d.]+)\s*kg\s*[×x]\s*(\d+)\s*$/i, '$2 × $1 kg') + (resultMark(r) === 'fail' ? ' ✗' : '')).join(' · ');
+        const plan = !res ? String(x.body || '').split('\n').map(l => l.trim()).filter(l => l && !/^(🎥|▸|ℹ️|how:|history:|log:|cue:)/i.test(l)).slice(0, 2).join(' / ') : '';
+        const note = (x.tk?.notes || '').trim();
+        return `<div class="bh-row"><div><span class="bh-d">${esc(fmtDateShort(x.date))} ${esc(String(x.date).slice(0, 4))}</span> <span class="bh-n">· ${esc(String(x.name || '').replace(/^\s*\[[^\]]*\]\s*/, ''))}</span></div>` +
+          (res ? `<div class="bh-r">${esc(res)}</div>` : `<div class="bh-note">Done ✓${plan ? ' — plan: ' + esc(plan.slice(0, 140)) : ''}</div>`) +
+          (note ? `<div class="bh-note">📝 ${esc(note.slice(0, 200))}</div>` : '') + `</div>`;
+      }).join('');
+      panel.innerHTML = `<div class="bh-h"><span>History · ${esc(lbl)}</span><span>${past.length} session${past.length > 1 ? 's' : ''}</span></div>${rows}`;
+    } catch (e){ panel.innerHTML = `<div class="bh-note">Could not load history.</div>`; console.warn('history', e); }
   }
 
   function timerHTML(t){
@@ -4248,7 +4333,7 @@ ${days}
       // per-set reps or seconds, prefilled from the title ("6×3" → 3, "4×40 sec" → 40)
       addHtml = `<form class="tk-add tk-gym"><input class="tk-w" type="number" min="0" step="1" inputmode="numeric" placeholder="${setUnit}" /><span class="tk-x" style="min-width:34px">${setUnit}</span><button type="submit" class="tk-ok" data-mark="ok" aria-label="Done" title="Done">✓</button><button type="submit" class="tk-fail" data-mark="fail" aria-label="Missed" title="Missed">✗</button></form>`;
     } else if (scoreType === 'distance'){
-      addHtml = `<form class="tk-add tk-dist"><input class="tk-w" type="number" min="0" step="25" inputmode="numeric" placeholder="Meters" style="flex:1.4" /><span class="tk-x" style="min-width:20px">m</span><input class="tk-temp" type="number" min="0" max="45" step="0.5" inputmode="decimal" placeholder="Water" style="flex:1" title="Water temperature — optional" /><span class="tk-x" style="min-width:22px">°C</span><button type="submit" aria-label="Add">+</button></form>`;
+      addHtml = `<form class="tk-add tk-dist"><input class="tk-w" type="number" min="0" step="25" inputmode="numeric" placeholder="Meters" style="flex:1.4" /><span class="tk-x" style="min-width:20px">m</span><input class="tk-temp" type="number" min="0" max="45" step="0.5" inputmode="decimal" placeholder="Temp" style="flex:1" title="Water temperature — optional" /><span class="tk-x" style="min-width:22px">°C</span><button type="submit" aria-label="Add">+</button></form>`;
     } else if (scoreType === 'reps'){
       addHtml = `<form class="tk-add"><input type="number" step="1" inputmode="numeric" placeholder="Reps / rounds" /><button type="submit" aria-label="Add">+</button></form>`;
     } else if (scoreType === 'time'){
