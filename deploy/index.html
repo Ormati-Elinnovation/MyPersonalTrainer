@@ -332,6 +332,10 @@
   .day-extra-btn.ice-btn{background:rgba(136,212,232,.14);color:var(--cyan);border:1px solid rgba(136,212,232,.28)}
   .day-extra-btn.active.sauna-btn{background:var(--danger);color:#fff}
   .day-extra-btn.active.ice-btn{background:var(--cyan);color:#06263a}
+  .day-extra-btn.float-btn{background:rgba(128,134,144,.16);color:#8a909a;border:1px solid rgba(128,134,144,.38)}
+  .day-extra-btn.active.float-btn{background:#7a808a;color:#fff;border-color:#7a808a}
+  .stat .v .float-n{color:#000}
+  [data-theme="dark"] .stat .v .float-n{color:#000;background:#e9ecf1;border-radius:6px;padding:0 5px}
   .tk-toggle{display:inline-flex;align-items:center;gap:10px;cursor:pointer;user-select:none;font-family:'Space Grotesk';font-size:11px;letter-spacing:1.2px;text-transform:uppercase}
   .tk-toggle input{position:absolute;opacity:0;pointer-events:none}
   .tk-track{position:relative;width:44px;height:24px;border-radius:999px;background:linear-gradient(135deg,#e57b8e,#c95066);transition:background .25s;box-shadow:inset 0 1px 4px rgba(0,0,0,.3);flex-shrink:0;direction:ltr}
@@ -2045,6 +2049,10 @@
   let viewProfile = null;    // profile of activeUserId() (self or the viewed trainee)
   let selfEditingLocked = false; // true if my coach has set me view-only
   function activeUserId(){ return targetUserId || currentUser?.id; }
+  // Float (flotation tank) recovery extra — Alumit only (Or 07.11)
+  const FLOAT_USERS = new Set(['479b2fa0-0f36-477e-b40a-2f2d1232373b']);
+  function floatEnabled(){ return FLOAT_COL && FLOAT_USERS.has(activeUserId()); }   // UI appears once db/07_float_tracker.sql is applied
+  let FLOAT_COL = false;   // tracker.float_tank exists in the DB (detected on load)
   function isViewingSelf(){ return !targetUserId || targetUserId === currentUser?.id; }
 
   async function loadPrograms(){
@@ -2536,13 +2544,15 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const { data, error } = await sb.from('tracker').select('*').eq('user_id', activeUserId());
     if (error){ console.error(error); return {}; }
     const t = {};
+    if (data.length) FLOAT_COL = 'float_tank' in data[0];
     data.forEach(row => {
       t[row.block_id] = {
         done: !!row.done,
         notes: row.notes || '',
         results: row.results || [],
         sauna: !!row.sauna,
-        ice: !!row.ice
+        ice: !!row.ice,
+        float: !!row.float_tank
       };
     });
     return t;
@@ -2564,12 +2574,14 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     if (error){ alert('Could not delete: ' + error.message); throw error; }
   }
   async function saveTrackerForBlock(blockId, state){
-    const { error } = await sb.from('tracker').upsert({
+    const row = {
       block_id: blockId, user_id: activeUserId(),
       done: !!state.done, notes: state.notes || '', results: state.results || [],
       sauna: !!state.sauna, ice: !!state.ice,
       updated_at: new Date().toISOString()
-    });
+    };
+    if (FLOAT_COL) row.float_tank = !!state.float;
+    const { error } = await sb.from('tracker').upsert(row);
     if (error) console.error('saveTracker:', error);
   }
   /* ============ CLIENT-SIDE VIDEO COMPRESSION ============ */
@@ -2894,8 +2906,9 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       const s = tkDataByDate(k);
       if (s.sauna) acc.sauna++;
       if (s.ice) acc.ice++;
+      if (s.float) acc.float++;
       return acc;
-    }, { sauna: 0, ice: 0 });
+    }, { sauna: 0, ice: 0, float: 0 });
 
     // A day counts once it's finished (Finish Day) or every block is done.
     // Rest days (only rest/recovery blocks) go to the Rest tile, not to Workouts.
@@ -2945,7 +2958,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
         <div class="k">Streak</div><div class="v">${streak}<small>day${streak === 1 ? '' : 's'}</small></div>
       </div>
       <div class="stat">
-        <div class="k">Sauna / Ice</div><div class="v"><span style="color:var(--danger)">${saunaIce.sauna}</span><small> / </small><span style="color:var(--cyan)">${saunaIce.ice}</span></div>
+        <div class="k">Sauna / Ice${floatEnabled() ? ' / Float' : ''}</div><div class="v"><span style="color:var(--danger)">${saunaIce.sauna}</span><small> / </small><span style="color:var(--cyan)">${saunaIce.ice}</span>${floatEnabled() ? `<small> / </small><span class="float-n">${saunaIce.float}</span>` : ''}</div>
       </div>
       <div class="stat ${weekWorkouts >= 7 ? 'good' : ''}">
         <div class="k">Workouts</div><div class="v">${weekWorkouts}<small>/7</small></div>
@@ -3031,7 +3044,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
           </div>
         </div>
       </div>
-      ${total ? `<div class="day-extras"><button class="day-extra-btn sauna-btn ${dayState.sauna ? 'active' : ''}" data-extra="sauna">Sauna</button><button class="day-extra-btn ice-btn ${dayState.ice ? 'active' : ''}" data-extra="ice">Ice</button></div>` : ''}
+      ${total ? `<div class="day-extras"><button class="day-extra-btn sauna-btn ${dayState.sauna ? 'active' : ''}" data-extra="sauna">Sauna</button><button class="day-extra-btn ice-btn ${dayState.ice ? 'active' : ''}" data-extra="ice">Ice</button>${floatEnabled() ? `<button class="day-extra-btn float-btn ${dayState.float ? 'active' : ''}" data-extra="float">Float</button>` : ''}</div>` : ''}
       <div class="day-body">
         ${daySummary.top}
         ${blocks.length ? `<div class="blocks" id="blocksContainer"></div>` : `
@@ -3041,7 +3054,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
             <button id="emptyAddBtn"><svg style="width:14px;height:14px;vertical-align:-2px;margin-right:4px"><use href="#i-plus"/></svg> Add Workout</button>
           </div>`}
       </div>
-      ${total ? `<div class="day-extras"><button class="day-extra-btn sauna-btn ${dayState.sauna ? 'active' : ''}" data-extra="sauna">Sauna</button><button class="day-extra-btn ice-btn ${dayState.ice ? 'active' : ''}" data-extra="ice">Ice</button></div>` : ''}
+      ${total ? `<div class="day-extras"><button class="day-extra-btn sauna-btn ${dayState.sauna ? 'active' : ''}" data-extra="sauna">Sauna</button><button class="day-extra-btn ice-btn ${dayState.ice ? 'active' : ''}" data-extra="ice">Ice</button>${floatEnabled() ? `<button class="day-extra-btn float-btn ${dayState.float ? 'active' : ''}" data-extra="float">Float</button>` : ''}</div>` : ''}
       <div class="day-body">${daySummary.bottom}</div>`;
     document.getElementById('addBlockBtn').addEventListener('click', () => openModal(null));
     const emptyBtn = document.getElementById('emptyAddBtn');
@@ -3158,7 +3171,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
         else if (k < today) status = `<span class="tag missed">Not completed</span>`;
         else status = `<span class="tag upcoming">Upcoming</span>`;
       }
-      const extras = `${extra.sauna ? '<span class="tag extra">Sauna</span>' : ''}${extra.ice ? '<span class="tag extra">Ice bath</span>' : ''}`;
+      const extras = `${extra.sauna ? '<span class="tag extra">Sauna</span>' : ''}${extra.ice ? '<span class="tag extra">Ice bath</span>' : ''}${extra.float ? '<span class="tag extra">Float</span>' : ''}`;
       let blocksHtml = '';
       if (!blocks.length){
         blocksHtml = `<div class="rest">Rest day — no workouts scheduled</div>`;
@@ -4265,11 +4278,12 @@ ${days}
   const ICON_VIDEO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>';
 
   function tkDataByDate(dateKey){
-    const out = { sauna:false, ice:false };
+    const out = { sauna:false, ice:false, float:false };
     (PROGRAM[dateKey] || []).forEach(b => {
       const s = tkData[b.id] || {};
       if (s.sauna) out.sauna = true;
       if (s.ice) out.ice = true;
+      if (s.float) out.float = true;
     });
     return out;
   }
@@ -4277,7 +4291,7 @@ ${days}
   function buildDailySummary(dateKey, blocks, dayState, done, total, ended){
     const workoutNames = (blocks || []).slice(0, 3).map(b => b.name).filter(Boolean);
     const focusAreas = (blocks || []).map(b => b.cat).filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i).slice(0, 3);
-    const saunaIce = [dayState.sauna ? 'Sauna' : null, dayState.ice ? 'Ice' : null].filter(Boolean);
+    const saunaIce = [dayState.sauna ? 'Sauna' : null, dayState.ice ? 'Ice' : null, dayState.float ? 'Float' : null].filter(Boolean);
     const progressText = total ? `${done}/${total} workouts completed` : 'No workout blocks today';
     const statusText = ended ? 'Day archived' : (total && done === total ? 'Clean sweep' : 'Keep building');
     const wins = workoutNames.length ? `• ${workoutNames.join('\n• ')}` : '• Show up and stay consistent';
@@ -4300,7 +4314,7 @@ ${days}
     const blocks = PROGRAM[dateKey] || [];
     await Promise.all(blocks.map(b => {
       const prev = tkData[b.id] || {};
-      const next = Object.assign({}, prev, { sauna: !!state.sauna, ice: !!state.ice });
+      const next = Object.assign({}, prev, { sauna: !!state.sauna, ice: !!state.ice, float: !!state.float });
       tkData[b.id] = next;
       return saveTrackerForBlock(b.id, next);
     }));
@@ -4318,7 +4332,7 @@ ${days}
     // Swim blocks are always logged as distance in meters (Or: "always meters, for me and Alumit")
     if (b && isSwimBlock(b)) scoreType = 'distance';
     const setUnit = (setPlan && setPlan.unit) || (gymDef && gymDef.lbl) || 'reps';
-    const state = tkData[key] = Object.assign({ done:false, notes:'', results:[], sauna:false, ice:false }, tkData[key] || {});
+    const state = tkData[key] = Object.assign({ done:false, notes:'', results:[], sauna:false, ice:false, float:false }, tkData[key] || {});
     let addHtml;
     if (scoreType === 'weight'){
       addHtml = `<form class="tk-add tk-wt"><input class="tk-reps" type="number" min="1" step="1" inputmode="numeric" placeholder="reps" value="${defaultRepsFor(b) || 1}" title="Reps (defaults to the title)" /><span class="tk-x">×</span><input class="tk-w" type="number" step="0.5" inputmode="decimal" placeholder="kg" /><button type="submit" class="tk-ok" data-mark="ok" aria-label="Made lift" title="Made it">✓</button><button type="submit" class="tk-fail" data-mark="fail" aria-label="Missed lift" title="Missed">✗</button><button type="button" class="tk-repeat-last" title="Repeat last set">↺</button></form>`;
@@ -5352,6 +5366,7 @@ ${days}
   }
   let weightsChart, volumeChart;
   async function buildCharts(){
+    if (!document.getElementById('weightsChart') || !document.getElementById('volumeChart')) return;
     await window._lazyLib.chart();
     Chart.defaults.font.family = "Inter, system-ui, sans-serif";
     const c = chartColors();
