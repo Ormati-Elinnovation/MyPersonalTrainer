@@ -2049,10 +2049,10 @@
   let viewProfile = null;    // profile of activeUserId() (self or the viewed trainee)
   let selfEditingLocked = false; // true if my coach has set me view-only
   function activeUserId(){ return targetUserId || currentUser?.id; }
-  // Float (flotation tank) recovery extra — Alumit only (Or 07.11)
+  // Vibrate Plate recovery extra (internal key 'float') — Alumit only (Or 07.11)
   const FLOAT_USERS = new Set(['479b2fa0-0f36-477e-b40a-2f2d1232373b']);
-  function floatEnabled(){ return FLOAT_COL && FLOAT_USERS.has(activeUserId()); }   // UI appears once db/07_float_tracker.sql is applied
-  let FLOAT_COL = false;   // tracker.float_tank exists in the DB (detected on load)
+  function floatEnabled(){ return FLOAT_COL && FLOAT_USERS.has(activeUserId()); }   // UI appears once db/07_vibrate_plate_tracker.sql is applied
+  let FLOAT_COL = false;   // tracker.vibrate_plate exists in the DB (detected on load)
   function isViewingSelf(){ return !targetUserId || targetUserId === currentUser?.id; }
 
   async function loadPrograms(){
@@ -2544,7 +2544,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     const { data, error } = await sb.from('tracker').select('*').eq('user_id', activeUserId());
     if (error){ console.error(error); return {}; }
     const t = {};
-    if (data.length) FLOAT_COL = 'float_tank' in data[0];
+    if (data.length) FLOAT_COL = 'vibrate_plate' in data[0];
     data.forEach(row => {
       t[row.block_id] = {
         done: !!row.done,
@@ -2552,7 +2552,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
         results: row.results || [],
         sauna: !!row.sauna,
         ice: !!row.ice,
-        float: !!row.float_tank
+        float: !!row.vibrate_plate
       };
     });
     return t;
@@ -2580,7 +2580,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
       sauna: !!state.sauna, ice: !!state.ice,
       updated_at: new Date().toISOString()
     };
-    if (FLOAT_COL) row.float_tank = !!state.float;
+    if (FLOAT_COL) row.vibrate_plate = !!state.float;
     const { error } = await sb.from('tracker').upsert(row);
     if (error) console.error('saveTracker:', error);
   }
@@ -2958,7 +2958,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
         <div class="k">Streak</div><div class="v">${streak}<small>day${streak === 1 ? '' : 's'}</small></div>
       </div>
       <div class="stat">
-        <div class="k">Sauna / Ice${floatEnabled() ? ' / Float' : ''}</div><div class="v"><span style="color:var(--danger)">${saunaIce.sauna}</span><small> / </small><span style="color:var(--cyan)">${saunaIce.ice}</span>${floatEnabled() ? `<small> / </small><span class="float-n">${saunaIce.float}</span>` : ''}</div>
+        <div class="k">Sauna / Ice${floatEnabled() ? ' / Vibrate Plate' : ''}</div><div class="v"><span style="color:var(--danger)">${saunaIce.sauna}</span><small> / </small><span style="color:var(--cyan)">${saunaIce.ice}</span>${floatEnabled() ? `<small> / </small><span class="float-n">${saunaIce.float}</span>` : ''}</div>
       </div>
       <div class="stat ${weekWorkouts >= 7 ? 'good' : ''}">
         <div class="k">Workouts</div><div class="v">${weekWorkouts}<small>/7</small></div>
@@ -3044,7 +3044,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
           </div>
         </div>
       </div>
-      ${total ? `<div class="day-extras"><button class="day-extra-btn sauna-btn ${dayState.sauna ? 'active' : ''}" data-extra="sauna">Sauna</button><button class="day-extra-btn ice-btn ${dayState.ice ? 'active' : ''}" data-extra="ice">Ice</button>${floatEnabled() ? `<button class="day-extra-btn float-btn ${dayState.float ? 'active' : ''}" data-extra="float">Float</button>` : ''}</div>` : ''}
+      ${total ? `<div class="day-extras"><button class="day-extra-btn sauna-btn ${dayState.sauna ? 'active' : ''}" data-extra="sauna">Sauna</button><button class="day-extra-btn ice-btn ${dayState.ice ? 'active' : ''}" data-extra="ice">Ice</button>${floatEnabled() ? `<button class="day-extra-btn float-btn ${dayState.float ? 'active' : ''}" data-extra="float">Vibrate Plate</button>` : ''}</div>` : ''}
       <div class="day-body">
         ${daySummary.top}
         ${blocks.length ? `<div class="blocks" id="blocksContainer"></div>` : `
@@ -3054,7 +3054,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
             <button id="emptyAddBtn"><svg style="width:14px;height:14px;vertical-align:-2px;margin-right:4px"><use href="#i-plus"/></svg> Add Workout</button>
           </div>`}
       </div>
-      ${total ? `<div class="day-extras"><button class="day-extra-btn sauna-btn ${dayState.sauna ? 'active' : ''}" data-extra="sauna">Sauna</button><button class="day-extra-btn ice-btn ${dayState.ice ? 'active' : ''}" data-extra="ice">Ice</button>${floatEnabled() ? `<button class="day-extra-btn float-btn ${dayState.float ? 'active' : ''}" data-extra="float">Float</button>` : ''}</div>` : ''}
+      ${total ? `<div class="day-extras"><button class="day-extra-btn sauna-btn ${dayState.sauna ? 'active' : ''}" data-extra="sauna">Sauna</button><button class="day-extra-btn ice-btn ${dayState.ice ? 'active' : ''}" data-extra="ice">Ice</button>${floatEnabled() ? `<button class="day-extra-btn float-btn ${dayState.float ? 'active' : ''}" data-extra="float">Vibrate Plate</button>` : ''}</div>` : ''}
       <div class="day-body">${daySummary.bottom}</div>`;
     document.getElementById('addBlockBtn').addEventListener('click', () => openModal(null));
     const emptyBtn = document.getElementById('emptyAddBtn');
@@ -3171,7 +3171,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
         else if (k < today) status = `<span class="tag missed">Not completed</span>`;
         else status = `<span class="tag upcoming">Upcoming</span>`;
       }
-      const extras = `${extra.sauna ? '<span class="tag extra">Sauna</span>' : ''}${extra.ice ? '<span class="tag extra">Ice bath</span>' : ''}${extra.float ? '<span class="tag extra">Float</span>' : ''}`;
+      const extras = `${extra.sauna ? '<span class="tag extra">Sauna</span>' : ''}${extra.ice ? '<span class="tag extra">Ice bath</span>' : ''}${extra.float ? '<span class="tag extra">Vibrate Plate</span>' : ''}`;
       let blocksHtml = '';
       if (!blocks.length){
         blocksHtml = `<div class="rest">Rest day — no workouts scheduled</div>`;
@@ -4291,7 +4291,7 @@ ${days}
   function buildDailySummary(dateKey, blocks, dayState, done, total, ended){
     const workoutNames = (blocks || []).slice(0, 3).map(b => b.name).filter(Boolean);
     const focusAreas = (blocks || []).map(b => b.cat).filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i).slice(0, 3);
-    const saunaIce = [dayState.sauna ? 'Sauna' : null, dayState.ice ? 'Ice' : null, dayState.float ? 'Float' : null].filter(Boolean);
+    const saunaIce = [dayState.sauna ? 'Sauna' : null, dayState.ice ? 'Ice' : null, dayState.float ? 'Vibrate Plate' : null].filter(Boolean);
     const progressText = total ? `${done}/${total} workouts completed` : 'No workout blocks today';
     const statusText = ended ? 'Day archived' : (total && done === total ? 'Clean sweep' : 'Keep building');
     const wins = workoutNames.length ? `• ${workoutNames.join('\n• ')}` : '• Show up and stay consistent';
