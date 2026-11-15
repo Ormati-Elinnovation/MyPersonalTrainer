@@ -117,11 +117,6 @@
   .auth-note{margin-top:14px;font-size:12px;color:var(--muted);text-align:center}
   .signup-only{display:none}
   .auth-screen:not([data-tab="signup"]) .signup-only{display:none!important}
-  .auth-mfa{display:none;flex-direction:column;gap:10px}
-  .auth-screen.mfa .auth-mfa{display:flex}
-  .auth-screen.mfa .auth-form,.auth-screen.mfa .auth-tabs,.auth-screen.mfa #faceIdSection,.auth-screen.mfa #authFaceBtn{display:none!important}
-  .auth-mfa input{font-size:22px;letter-spacing:6px;text-align:center}
-  .auth-mfa .auth-mfa-alt{background:none;border:none;color:var(--ink-soft);font-size:12.5px;cursor:pointer;text-decoration:underline;padding:4px}
   .auth-screen[data-tab="signup"] .signup-only{display:flex}
   .auth-screen[data-tab="signup"] .login-only{display:none}
 
@@ -1029,12 +1024,6 @@
       <label>Email<input type="email" name="email" autocomplete="email" placeholder="you@example.com" required></label>
       <label>Password<input type="password" name="password" autocomplete="current-password" minlength="6" placeholder="At least 6 characters" required></label>
       <button type="submit" class="auth-submit" id="authSubmit"><span id="authSubmitLabel">Sign In</span></button>
-    </form>
-    <form class="auth-mfa" id="authMfaForm">
-      <p class="sub" style="margin:0">Enter the 6-digit code from your Authenticator app. <b>Only once on this device</b> — after that you stay signed in.</p>
-      <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" placeholder="000000" required>
-      <button type="submit" class="auth-submit" id="authMfaSubmit"><span>Verify</span></button>
-      <button type="button" class="auth-mfa-alt" id="authMfaCancel">Use a different account</button>
     </form>
     <div class="auth-or login-only" id="faceIdSection" style="display:none">or</div>
     <button class="auth-face login-only" id="authFaceBtn" style="display:none">
@@ -2399,45 +2388,9 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     }
   });
 
-  /* ---- 2FA once per device (Or 15.11) ----
-     Accounts with an Authenticator (TOTP) factor: Supabase revokes every password-only (aal1) session of the
-     user whenever the code is entered elsewhere (e.g. the crypto app's daily code) → this app got signed out
-     daily. A session that verified the code once (aal2) survives, so we ask for the code once per device. */
-  let _mfaFactorId = null;
-  async function needsMfa(){
-    try {
-      const { data } = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
-      if (!data || data.nextLevel !== 'aal2' || data.currentLevel === 'aal2') return false;
-      const { data: f } = await sb.auth.mfa.listFactors();
-      const t = (f?.totp || []).find(x => x.status === 'verified');
-      _mfaFactorId = t ? t.id : null;
-      return !!_mfaFactorId;
-    } catch { return false; }
-  }
-  function showMfaStep(){
-    showAuthScreen(); authScreen.classList.add("mfa"); setAuthError(""); authSubmit.disabled = false; authSubmitLabel.textContent = "Sign In";
-    const i = document.querySelector('#authMfaForm input'); i.value = ''; setTimeout(() => i.focus(), 50);
-  }
-  function hideMfaStep(){ authScreen.classList.remove('mfa'); }
-  document.getElementById('authMfaForm').addEventListener('submit', async (e) => {
-    e.preventDefault(); setAuthError('');
-    const code = String(new FormData(e.target).get('code') || '').replace(/\D/g, '');
-    if (code.length !== 6){ setAuthError('Enter the 6 digits from your Authenticator app.'); return; }
-    const btn = document.getElementById('authMfaSubmit'); btn.disabled = true;
-    try {
-      const { error } = await sb.auth.mfa.challengeAndVerify({ factorId: _mfaFactorId, code });
-      if (error) throw error;
-      const { data: { session } } = await sb.auth.getSession();
-      hideMfaStep(); currentUser = session.user;
-      authSubmit.disabled = false; authSubmitLabel.textContent = 'Sign In';
-      await afterLogin();
-    } catch(err){ setAuthError(/invalid|expired/i.test(err?.message||'') ? 'Wrong or expired code — try the current one.' : (err?.message || String(err))); }
-    finally { btn.disabled = false; }
-  });
-  document.getElementById('authMfaCancel').addEventListener('click', async () => { hideMfaStep(); await sb.auth.signOut(); });
+  /* Password-only login, remembered on the device (Or 15.11): this app has NO 2FA.
+     The crypto dashboard's 2FA is its own (app-level) and no longer touches this session. */
   async function enterApp(session){
-    if (await needsMfa()){ showMfaStep(); return; }
-    hideMfaStep();
     const switched = currentUser?.id !== session.user.id;
     currentUser = session.user;
     hideAuthScreen();
@@ -2448,7 +2401,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
     // Initial load is handled by the boot IIFE below; ignore silent/non-login events.
     if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED' || event === 'MFA_CHALLENGE_VERIFIED') return;
     if (event === 'SIGNED_OUT' || !session?.user){
-      currentUser = null; hideMfaStep();
+      currentUser = null;
       showAuthScreen();
       return;
     }
@@ -2557,8 +2510,7 @@ Output ONLY: [{"date_offset":0,"blocks":[...]}, {"date_offset":1,"blocks":[...]}
         }
       });
       if (!result){ setAuthError('Face ID failed.'); return; }
-      // Verified — proceed with existing session (2FA accounts still need the one-time code)
-      if (await needsMfa()){ showMfaStep(); return; }
+      // Verified — proceed with existing session
       currentUser = session.user;
       hideAuthScreen();
       afterLogin();
@@ -5391,7 +5343,7 @@ ${days}
   }
 
   document.getElementById('signOutBtn').addEventListener('click', async () => {
-    await sb.auth.signOut();
+    await sb.auth.signOut({ scope: 'local' });
     PROGRAM = {}; tkData = {}; currentUser = null; currentProfile = null;
     targetUserId = null; viewingTrainee = null; viewProfile = null;
     renderTraineeBanner();
@@ -7103,7 +7055,6 @@ ${days}
   (async () => {
     const { data: { session } } = await sb.auth.getSession();
     if (session && session.user){
-      if (await needsMfa()){ showMfaStep(); return; }
       currentUser = session.user;
       await afterLogin();
     } else {
